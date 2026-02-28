@@ -64,6 +64,10 @@
                     <span class="tci-label">TCI</span>
                     <input id="tciHost" type="text" value="{{ data.tci.host }}" placeholder="IP address">
                     <input id="tciPort" type="number" value="{{ data.tci.port }}" placeholder="Port">
+                    <select id="tciProfile" title="TCI profile">
+                        <option value="thetis" {% if data.tci.profile == "thetis" %}selected{% endif %}>Thetis</option>
+                        <option value="expert" {% if data.tci.profile == "expert" %}selected{% endif %}>Expert (SunSDR)</option>
+                    </select>
                     <button id="tciConnectBtn" type="button">Connect</button>
                     <button id="tciDisconnectBtn" type="button">Disconnect</button>
                     <span id="tciStatus" class="tci-status {% if data.tci.connected %}ok{% else %}bad{% endif %}">
@@ -285,6 +289,7 @@
         const freqJumpBar = document.getElementById("freqJumpBar");
         const tciHost = document.getElementById("tciHost");
         const tciPort = document.getElementById("tciPort");
+        const tciProfile = document.getElementById("tciProfile");
         const tciConnectBtn = document.getElementById("tciConnectBtn");
         const tciDisconnectBtn = document.getElementById("tciDisconnectBtn");
         const tciMuteBtn = document.getElementById("tciMuteBtn");
@@ -453,7 +458,7 @@
             const response = await fetch("/api/tci/connect", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({host, port, send_spot: tciSendSpot.checked}),
+                body: JSON.stringify({host, port, profile: tciProfile.value, send_spot: tciSendSpot.checked}),
             });
             const data = await response.json();
             setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
@@ -466,7 +471,7 @@
             const response = await fetch("/api/tci/settings", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({host, port, send_spot: tciSendSpot.checked}),
+                body: JSON.stringify({host, port, profile: tciProfile.value, send_spot: tciSendSpot.checked}),
             });
             const data = await response.json();
             setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
@@ -542,6 +547,7 @@
         tciRawSendBtn.addEventListener("click", sendRawTci);
         tciHost.addEventListener("change", saveTciSettings);
         tciPort.addEventListener("change", saveTciSettings);
+        tciProfile.addEventListener("change", saveTciSettings);
         tciSendSpot.addEventListener("change", saveTciSettings);
 
         topScrollbar.addEventListener("scroll", () => {

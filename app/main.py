@@ -8,8 +8,10 @@ try:
         TCI,
         DEFAULT_SEND_SPOT,
         DEFAULT_TCI_MODE,
+        DEFAULT_TCI_PROFILE,
         bootstrap_tci_from_config,
         get_send_spot,
+        get_tci_profile,
         save_tci_settings,
     )
 except ImportError:
@@ -17,14 +19,16 @@ except ImportError:
         TCI,
         DEFAULT_SEND_SPOT,
         DEFAULT_TCI_MODE,
+        DEFAULT_TCI_PROFILE,
         bootstrap_tci_from_config,
         get_send_spot,
+        get_tci_profile,
         save_tci_settings,
     )
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.8"
+APP_VERSION = "0.2.9"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 
@@ -477,8 +481,9 @@ def tci_connect():
     host = str(payload.get("host", TCI.host))
     port = int(payload.get("port", TCI.port))
     send_spot = bool(payload.get("send_spot", get_send_spot()))
-    TCI.configure(host, port)
-    save_tci_settings(TCI.host, TCI.port, send_spot)
+    profile = str(payload.get("profile", get_tci_profile()))
+    TCI.configure(host, port, profile=profile)
+    save_tci_settings(TCI.host, TCI.port, send_spot, TCI.profile)
     ok, message = TCI.connect()
     status = TCI.status()
     status["send_spot"] = send_spot
@@ -500,8 +505,9 @@ def tci_settings():
     host = str(payload.get("host", TCI.host))
     port = int(payload.get("port", TCI.port))
     send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
-    TCI.configure(host, port)
-    save_tci_settings(TCI.host, TCI.port, send_spot)
+    profile = str(payload.get("profile", DEFAULT_TCI_PROFILE))
+    TCI.configure(host, port, profile=profile)
+    save_tci_settings(TCI.host, TCI.port, send_spot, TCI.profile)
     status = TCI.status()
     status["send_spot"] = send_spot
     status["message"] = "Settings saved"
@@ -611,6 +617,7 @@ def index():
         "view_mode": view_mode,
         "tci": TCI.status(),
         "tci_send_spot": get_send_spot(),
+        "tci_profile": get_tci_profile(),
     }
     return render_template("index.html", data=data)
 

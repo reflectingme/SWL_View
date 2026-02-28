@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
  TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
 
-- Version: 0.2.8
+- Version: 0.2.9
 - By: GW3JVB
 - Copyright: © 2026
 
@@ -35,6 +35,9 @@ All testing carried out using Thetis v2.10.3.13 x64
   - View mode selector
 - TCI Controls card:
   - Connect / disconnect to TCI server (WebSocket)
+  - `TCI Profile` selector:
+    - `Thetis` (default)
+    - `Expert (SunSDR)`
   - Tune by clicking station cards
   - Audio mute toggle (`Audio: ON` / `Audio: MUTED`)
   - Optional spot send (`Send spot`)

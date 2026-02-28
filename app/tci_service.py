@@ -14,6 +14,8 @@ except Exception:
 
 DEFAULT_TCI_MODE = "am"
 DEFAULT_SEND_SPOT = True
+DEFAULT_TCI_PROFILE = "thetis"
+VALID_TCI_PROFILES = {"thetis", "expert"}
 CONFIG_FILE = (Path(__file__).parent / "local_config.json").resolve()
 
 
@@ -26,6 +28,7 @@ class TCIClient:
         self.last_error = ""
         self.last_command = ""
         self.muted = False
+        self.profile = DEFAULT_TCI_PROFILE
 
     def status(self) -> dict:
         with self._lock:
@@ -38,12 +41,16 @@ class TCIClient:
                 "last_error": self.last_error,
                 "last_command": self.last_command,
                 "muted": self.muted,
+                "profile": self.profile,
             }
 
-    def configure(self, host: str, port: int) -> None:
+    def configure(self, host: str, port: int, profile: str | None = None) -> None:
         with self._lock:
             self.host = host.strip() or "127.0.0.1"
             self.port = int(port)
+            if profile is not None:
+                profile_value = str(profile).strip().lower()
+                self.profile = profile_value if profile_value in VALID_TCI_PROFILES else DEFAULT_TCI_PROFILE
 
     def connect(self) -> tuple[bool, str]:
         if websocket is None:
@@ -136,7 +143,13 @@ class TCIClient:
             "ttl": int(ttl_seconds),
         }
         payload_json = json.dumps(payload, separators=(",", ":"))
-        commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},20381,[json]{payload_json};"]
+        if self.profile == "expert":
+            text_value = f"SWL schedule {mode_raw or 'am'}"
+            text_value = text_value.replace(",", " ").replace(";", " ").strip() or "SWL_View"
+            argb = "16711680"
+            commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},{argb},{text_value};"]
+        else:
+            commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},20381,[json]{payload_json};"]
 
         with self._lock:
             if self._ws is None:
@@ -225,12 +238,14 @@ def save_local_config(config: dict) -> None:
     CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
-def save_tci_settings(host: str, port: int, send_spot: bool) -> None:
+def save_tci_settings(host: str, port: int, send_spot: bool, profile: str = DEFAULT_TCI_PROFILE) -> None:
     config = load_local_config()
     config.setdefault("tci", {})
+    profile_value = str(profile).strip().lower()
     config["tci"]["host"] = host
     config["tci"]["port"] = int(port)
     config["tci"]["send_spot"] = bool(send_spot)
+    config["tci"]["profile"] = profile_value if profile_value in VALID_TCI_PROFILES else DEFAULT_TCI_PROFILE
     save_local_config(config)
 
 
@@ -238,9 +253,15 @@ def get_send_spot() -> bool:
     return bool(load_local_config().get("tci", {}).get("send_spot", DEFAULT_SEND_SPOT))
 
 
+def get_tci_profile() -> str:
+    profile_value = str(load_local_config().get("tci", {}).get("profile", DEFAULT_TCI_PROFILE)).strip().lower()
+    return profile_value if profile_value in VALID_TCI_PROFILES else DEFAULT_TCI_PROFILE
+
+
 def bootstrap_tci_from_config() -> None:
     config = load_local_config()
     tci_cfg = config.get("tci", {})
     host = str(tci_cfg.get("host", TCI.host))
     port = int(tci_cfg.get("port", TCI.port))
-    TCI.configure(host, port)
+    profile = str(tci_cfg.get("profile", DEFAULT_TCI_PROFILE))
+    TCI.configure(host, port, profile=profile)

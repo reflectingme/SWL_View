@@ -278,6 +278,12 @@ body {
     padding: 3px 6px;
 }
 
+.tci-panel select {
+    font-size: 12px;
+    padding: 3px 6px;
+    height: 26px;
+}
+
 #tciPort {
     width: 80px;
 }
