@@ -3,6 +3,9 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import time
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 try:
     from .tci_service import (
         TCI,
@@ -41,6 +44,10 @@ app = Flask(__name__)
 APP_VERSION = "0.2.11"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
+REPO_RELEASES_URL = "https://github.com/reflectingme/SWL_View/releases/latest"
+REPO_LATEST_API_URL = "https://api.github.com/repos/reflectingme/SWL_View/releases/latest"
+UPDATE_CHECK_CACHE_SECONDS = 86400
+_UPDATE_CACHE: dict = {"checked_at": 0.0, "payload": None}
 
 DATA_FILE = (Path(__file__).parent.parent / "scraper" / "output" / "eibi_latest.json").resolve()
 DAY_ORDER = ["mo", "tu", "we", "th", "fr", "sa", "su"]
@@ -68,6 +75,79 @@ ITU_TO_ISO2 = {
 
 
 bootstrap_tci_from_config()
+
+
+def _version_to_tuple(version_text: str) -> tuple[int, ...]:
+    text = (version_text or "").strip().lower()
+    text = text[1:] if text.startswith("v") else text
+    parts = [int(p) for p in re.findall(r"\d+", text)]
+    return tuple(parts) if parts else (0,)
+
+
+def _version_is_newer(latest: str, current: str) -> bool:
+    left = list(_version_to_tuple(latest))
+    right = list(_version_to_tuple(current))
+    width = max(len(left), len(right))
+    left.extend([0] * (width - len(left)))
+    right.extend([0] * (width - len(right)))
+    return tuple(left) > tuple(right)
+
+
+def _fetch_latest_release_payload() -> dict:
+    request_obj = Request(
+        REPO_LATEST_API_URL,
+        headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "SWL-View/1.0",
+        },
+    )
+    with urlopen(request_obj, timeout=3.0) as response:
+        raw = response.read().decode("utf-8", errors="replace")
+    data = json.loads(raw)
+    latest_tag = str(data.get("tag_name", "")).strip()
+    latest_version = latest_tag[1:] if latest_tag.lower().startswith("v") else latest_tag
+    assets = data.get("assets", []) if isinstance(data.get("assets"), list) else []
+    mac_url = ""
+    win_url = ""
+    for asset in assets:
+        name = str(asset.get("name", "")).lower()
+        browser_url = str(asset.get("browser_download_url", ""))
+        if name.endswith(".zip") and ("macos" in name or "mac" in name) and not mac_url:
+            mac_url = browser_url
+        if name.endswith(".zip") and ("win11" in name or "windows" in name or "win" in name) and not win_url:
+            win_url = browser_url
+    return {
+        "current_version": APP_VERSION,
+        "latest_version": latest_version,
+        "update_available": _version_is_newer(latest_version, APP_VERSION),
+        "release_url": str(data.get("html_url") or REPO_RELEASES_URL),
+        "macos_url": mac_url,
+        "windows_url": win_url,
+        "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _get_update_payload() -> dict:
+    now = time.time()
+    checked_at = float(_UPDATE_CACHE.get("checked_at", 0.0) or 0.0)
+    cached = _UPDATE_CACHE.get("payload")
+    if cached and (now - checked_at) < UPDATE_CHECK_CACHE_SECONDS:
+        return dict(cached)
+    try:
+        payload = _fetch_latest_release_payload()
+    except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
+        payload = {
+            "current_version": APP_VERSION,
+            "latest_version": APP_VERSION,
+            "update_available": False,
+            "release_url": REPO_RELEASES_URL,
+            "macos_url": "",
+            "windows_url": "",
+            "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+        }
+    _UPDATE_CACHE["checked_at"] = now
+    _UPDATE_CACHE["payload"] = dict(payload)
+    return payload
 
 
 def _parse_hhmm(value: str) -> int | None:
@@ -504,6 +584,11 @@ def _build_freq_jumps(entries: list[dict], segments: int = 10) -> list[dict]:
 @app.get("/api/tci/status")
 def tci_status():
     return jsonify(TCI.status())
+
+
+@app.get("/api/update-status")
+def update_status():
+    return jsonify(_get_update_payload())
 
 
 @app.post("/api/tci/connect")

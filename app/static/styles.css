@@ -39,6 +39,50 @@ body {
     font-size: 13px;
 }
 
+.update-banner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 8px;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    background: #eff6ff;
+    color: #1e3a8a;
+    font-size: 12px;
+}
+
+.update-banner-text {
+    font-weight: 600;
+}
+
+.update-banner-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.update-banner-actions a {
+    color: #1d4ed8;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.update-banner-actions a:hover {
+    text-decoration: underline;
+}
+
+.update-banner-actions button {
+    font-size: 12px;
+    padding: 2px 8px;
+    border: 1px solid #93c5fd;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #1e40af;
+    cursor: pointer;
+}
+
 .hidden {
     display: none;
 }

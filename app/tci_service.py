@@ -139,10 +139,9 @@ class TCIClient:
         }
         spot_mode = mode_map.get(mode_raw, "ssb")
         ttl_value = 0 if persistent_swl_spot else max(1, int(ttl_seconds))
-        if use_swl_timed_spot:
-            spot_mode_token = f"{spot_mode}-swl[{ttl_value}]"
-        else:
-            spot_mode_token = spot_mode.upper()
+        # Thetis builds now carry SWL TTL via JSON tags (IsSWL / SWLSecondsToLive),
+        # so mode should remain plain (without -swl[n] suffix).
+        spot_mode_token = spot_mode.upper()
         utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         payload = {
             "spotter": "SWL_View",

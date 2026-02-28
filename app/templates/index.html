@@ -13,6 +13,7 @@
             <h1>SWL View - EiBi Schedule</h1>
         </div>
         <p class="app-meta">Version {{ data.app_version }} | by {{ data.app_author }} | {{ data.app_copyright }}</p>
+        <div id="updateBanner" class="update-banner hidden" aria-live="polite"></div>
     </div>
     <div class="top-summary">
         <div class="top-meta">
@@ -318,6 +319,7 @@
         const tciMessage = document.getElementById("tciMessage");
         const tciRawCmd = document.getElementById("tciRawCmd");
         const tciRawSendBtn = document.getElementById("tciRawSendBtn");
+        const updateBanner = document.getElementById("updateBanner");
         const selectedStation = document.getElementById("selectedStation");
         const selectedDetails = document.getElementById("selectedDetails");
         const columnView = document.getElementById("columnView");
@@ -580,6 +582,55 @@
             setTciStatus(connected, message);
         }
 
+        function dismissUpdate(version) {
+            try {
+                localStorage.setItem("swl_view_update_dismissed", String(version || ""));
+            } catch (_) {}
+            updateBanner.classList.add("hidden");
+            updateBanner.innerHTML = "";
+        }
+
+        function renderUpdateBanner(payload) {
+            const latest = String(payload?.latest_version || "").trim();
+            const current = String(payload?.current_version || "").trim();
+            const updateAvailable = Boolean(payload?.update_available) && latest && latest !== current;
+            if (!updateAvailable) return;
+            let dismissed = "";
+            try {
+                dismissed = localStorage.getItem("swl_view_update_dismissed") || "";
+            } catch (_) {}
+            if (dismissed === latest) return;
+            const links = [];
+            if (payload?.release_url) {
+                links.push(`<a href="${payload.release_url}" target="_blank" rel="noopener noreferrer">View release</a>`);
+            }
+            if (payload?.macos_url) {
+                links.push(`<a href="${payload.macos_url}" target="_blank" rel="noopener noreferrer">Download macOS</a>`);
+            }
+            if (payload?.windows_url) {
+                links.push(`<a href="${payload.windows_url}" target="_blank" rel="noopener noreferrer">Download Windows</a>`);
+            }
+            const actions = links.join(" ");
+            updateBanner.innerHTML = `
+                <div class="update-banner-text">Update available: v${latest} (current v${current})</div>
+                <div class="update-banner-actions">${actions} <button type="button" id="updateBannerDismiss">Dismiss</button></div>
+            `;
+            updateBanner.classList.remove("hidden");
+            const dismissBtn = document.getElementById("updateBannerDismiss");
+            if (dismissBtn) {
+                dismissBtn.addEventListener("click", () => dismissUpdate(latest));
+            }
+        }
+
+        async function checkForUpdates() {
+            try {
+                const response = await fetch("/api/update-status");
+                if (!response.ok) return;
+                const payload = await response.json();
+                renderUpdateBanner(payload);
+            } catch (_) {}
+        }
+
         tciConnectBtn.addEventListener("click", connectTci);
         tciDisconnectBtn.addEventListener("click", disconnectTci);
         tciMuteBtn.addEventListener("click", toggleMute);
@@ -650,6 +701,7 @@
         applyLiveFilter();
         syncTopScrollbarWidth();
         setTciStatus({{ "true" if data.tci.connected else "false" }}, tciMessage.textContent);
+        checkForUpdates();
     </script>
     <footer class="app-footer">SWL View v{{ data.app_version }} by {{ data.app_author }} {{ data.app_copyright }}</footer>
 </body>
