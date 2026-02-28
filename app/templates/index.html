@@ -9,11 +9,18 @@
     <p class="app-meta">Version {{ data.app_version }} | by {{ data.app_author }} | {{ data.app_copyright }}</p>
     <div class="top-summary">
         <div class="top-meta">
-            <p>Original rows: {{ data.raw_count }}</p>
-            <p>Merged rows: {{ data.count }}</p>
-            <p>Live now (UTC {{ data.now_utc_hhmm }}): {{ data.live_count }}</p>
-            <p>Time columns: {{ data.column_count }} | Frequency columns: {{ data.freq_column_count }}</p>
-            <p>Time slots: {{ data.time_slot_count }} | Frequency slots: {{ data.freq_slot_count }}</p>
+            <div class="details-block">
+                <div class="details-title">Dataset</div>
+                <aside class="summary-details">
+                    <h3>Schedule Summary</h3>
+                    <p>Original rows: {{ data.raw_count }}</p>
+                    <p>Merged rows: {{ data.count }}</p>
+                    <p>Last scrape: {{ data.fetched_at_display }}</p>
+                    <p>Live now (UTC {{ data.now_utc_hhmm }}): {{ data.live_count }}</p>
+                    <p>Time columns: {{ data.column_count }} | Frequency columns: {{ data.freq_column_count }}</p>
+                    <p>Time slots: {{ data.time_slot_count }} | Frequency slots: {{ data.freq_slot_count }}</p>
+                </aside>
+            </div>
         </div>
         <div class="details-block">
             <div class="details-title">Current Active</div>
@@ -32,38 +39,57 @@
     </div>
 
     <div class="filter-bar">
-        <label class="toggle">
-            <input type="checkbox" id="liveOnlyToggle">
-            Show only live now
-        </label>
-        <label class="toggle">
-            View
-            <select id="viewToggle">
-                <option value="columns" {% if data.view_mode == "columns" %}selected{% endif %}>Columns</option>
-                <option value="freqcolumns" {% if data.view_mode == "freqcolumns" %}selected{% endif %}>Frequency Columns</option>
-                <option value="grid" {% if data.view_mode == "grid" %}selected{% endif %}>Time x Day Grid</option>
-                <option value="freqgrid" {% if data.view_mode == "freqgrid" %}selected{% endif %}>Freq x Time Grid</option>
-            </select>
-        </label>
-        <div class="tci-panel">
-            <span class="tci-label">TCI</span>
-            <input id="tciHost" type="text" value="{{ data.tci.host }}" placeholder="IP address">
-            <input id="tciPort" type="number" value="{{ data.tci.port }}" placeholder="Port">
-            <button id="tciConnectBtn" type="button">Connect</button>
-            <button id="tciDisconnectBtn" type="button">Disconnect</button>
-            <label class="toggle compact">
-                <input id="tciSendSpot" type="checkbox" {% if data.tci_send_spot %}checked{% endif %}>
-                Send spot
-            </label>
-            <span id="tciStatus" class="tci-status {% if data.tci.connected %}ok{% else %}bad{% endif %}">
-                {% if data.tci.connected %}Connected{% else %}Disconnected{% endif %}
-            </span>
-            <span id="tciMessage" class="tci-message">{{ data.tci.last_error }}</span>
-            <span id="selectedStation" class="selected-station-label">Selected: none</span>
+        <div class="tci-container">
+            <div class="tci-container-title">TCI Controls</div>
+            <div class="tci-panel">
+                <div class="tci-row">
+                    <span class="tci-label">TCI</span>
+                    <input id="tciHost" type="text" value="{{ data.tci.host }}" placeholder="IP address">
+                    <input id="tciPort" type="number" value="{{ data.tci.port }}" placeholder="Port">
+                    <button id="tciConnectBtn" type="button">Connect</button>
+                    <button id="tciDisconnectBtn" type="button">Disconnect</button>
+                    <span id="tciStatus" class="tci-status {% if data.tci.connected %}ok{% else %}bad{% endif %}">
+                        {% if data.tci.connected %}Connected{% else %}Disconnected{% endif %}
+                    </span>
+                    <span id="tciMessage" class="tci-message">{{ data.tci.last_error }}</span>
+                </div>
+                <div class="tci-row">
+                    <button id="tciMuteBtn" type="button" class="tci-mute-btn {% if data.tci.muted %}muted{% else %}unmuted{% endif %}">{% if data.tci.muted %}Audio: MUTED{% else %}Audio: ON{% endif %}</button>
+                    <label class="toggle compact send-spot-toggle">
+                        <input id="tciSendSpot" type="checkbox" {% if data.tci_send_spot %}checked{% endif %}>
+                        Send spot
+                    </label>
+                    <span id="selectedStation" class="selected-station-label">Selected: none</span>
+                </div>
+                <div class="tci-row">
+                    <div class="tci-raw">
+                        <input id="tciRawCmd" type="text" placeholder="Raw TCI command (e.g. spot:M0SWL,7400000,ssb-swl[120];)">
+                        <button id="tciRawSendBtn" type="button">Send Raw</button>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="tci-raw">
-            <input id="tciRawCmd" type="text" placeholder="Raw TCI command (e.g. spot:M0SWL,7400000,ssb-swl[120];)">
-            <button id="tciRawSendBtn" type="button">Send Raw</button>
+        <div class="view-container">
+            <div class="view-container-title">View Controls</div>
+            <div class="view-panel">
+                <div class="view-cell">
+                    <label class="toggle">
+                        <input type="checkbox" id="liveOnlyToggle">
+                        Show Live
+                    </label>
+                </div>
+                <div class="view-cell">
+                    <label class="toggle">
+                        View
+                        <select id="viewToggle">
+                            <option value="columns" {% if data.view_mode == "columns" %}selected{% endif %}>Columns</option>
+                            <option value="freqcolumns" {% if data.view_mode == "freqcolumns" %}selected{% endif %}>Frequency Columns</option>
+                            <option value="grid" {% if data.view_mode == "grid" %}selected{% endif %}>Time x Day Grid</option>
+                            <option value="freqgrid" {% if data.view_mode == "freqgrid" %}selected{% endif %}>Freq x Time Grid</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -243,6 +269,7 @@
         const tciPort = document.getElementById("tciPort");
         const tciConnectBtn = document.getElementById("tciConnectBtn");
         const tciDisconnectBtn = document.getElementById("tciDisconnectBtn");
+        const tciMuteBtn = document.getElementById("tciMuteBtn");
         const tciSendSpot = document.getElementById("tciSendSpot");
         const tciStatus = document.getElementById("tciStatus");
         const tciMessage = document.getElementById("tciMessage");
@@ -256,6 +283,7 @@
         const freqGridView = document.getElementById("freqGridView");
         let syncLock = false;
         let selectedCard = null;
+        let isMuted = {{ "true" if data.tci.muted else "false" }};
 
         function activePane() {
             if (viewToggle.value === "freqgrid") {
@@ -395,6 +423,10 @@
             tciStatus.classList.toggle("bad", !connected);
             tciStatus.title = message || "";
             tciMessage.textContent = message || "";
+            tciMuteBtn.disabled = !connected;
+            tciMuteBtn.textContent = isMuted ? "Audio: MUTED" : "Audio: ON";
+            tciMuteBtn.classList.toggle("muted", isMuted);
+            tciMuteBtn.classList.toggle("unmuted", !isMuted);
         }
 
         async function connectTci() {
@@ -425,7 +457,24 @@
         async function disconnectTci() {
             const response = await fetch("/api/tci/disconnect", {method: "POST"});
             const data = await response.json();
+            isMuted = false;
             setTciStatus(Boolean(data.connected), data.message || "");
+        }
+
+        async function toggleMute() {
+            const targetMuted = !isMuted;
+            const response = await fetch("/api/tci/mute", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({muted: targetMuted}),
+            });
+            const data = await response.json();
+            const connected = Boolean(data?.status?.connected);
+            if (data?.ok) {
+                isMuted = targetMuted;
+            }
+            const message = data?.result || data?.status?.last_error || data?.message || "";
+            setTciStatus(connected, message);
         }
 
         async function tuneFromCard(card) {
@@ -471,6 +520,7 @@
 
         tciConnectBtn.addEventListener("click", connectTci);
         tciDisconnectBtn.addEventListener("click", disconnectTci);
+        tciMuteBtn.addEventListener("click", toggleMute);
         tciRawSendBtn.addEventListener("click", sendRawTci);
         tciHost.addEventListener("change", saveTciSettings);
         tciPort.addEventListener("change", saveTciSettings);
@@ -537,6 +587,7 @@
 
         applyLiveFilter();
         syncTopScrollbarWidth();
+        setTciStatus({{ "true" if data.tci.connected else "false" }}, tciMessage.textContent);
     </script>
     <footer class="app-footer">SWL View v{{ data.app_version }} by {{ data.app_author }} {{ data.app_copyright }}</footer>
 </body>

@@ -24,7 +24,7 @@ except ImportError:
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.2"
+APP_VERSION = "0.2.3"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 
@@ -84,6 +84,20 @@ def _format_time_range(time_on: str, time_off: str) -> str:
     if on and off:
         return f"{on}-{off}"
     return on or off
+
+
+def _format_scrape_timestamp(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return "Unknown"
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return text
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    parsed_utc = parsed.astimezone(timezone.utc)
+    return parsed_utc.strftime("%Y-%m-%d %H:%M UTC")
 
 
 def _join_non_empty(left: str, right: str, separator: str = " | ") -> str:
@@ -526,6 +540,15 @@ def tci_raw():
     return jsonify({"ok": ok, "result": result, "status": status}), (200 if ok else 400)
 
 
+@app.post("/api/tci/mute")
+def tci_mute():
+    payload = request.get_json(silent=True) or {}
+    muted = bool(payload.get("muted", True))
+    ok, result = TCI.set_mute(muted)
+    status = TCI.status()
+    return jsonify({"ok": ok, "result": result, "status": status}), (200 if ok else 400)
+
+
 @app.route("/")
 def index():
     if DATA_FILE.exists():
@@ -569,6 +592,7 @@ def index():
         "app_copyright": APP_COPYRIGHT,
         "source_file": source.get("source_file"),
         "fetched_at_utc": source.get("fetched_at_utc"),
+        "fetched_at_display": _format_scrape_timestamp(source.get("fetched_at_utc")),
         "raw_count": len(source.get("entries", [])),
         "count": len(merged_entries),
         "entries": merged_entries,

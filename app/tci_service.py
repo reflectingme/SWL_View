@@ -24,6 +24,7 @@ class TCIClient:
         self.port = 40001
         self.last_error = ""
         self.last_command = ""
+        self.muted = False
 
     def status(self) -> dict:
         with self._lock:
@@ -35,6 +36,7 @@ class TCIClient:
                 "port": self.port,
                 "last_error": self.last_error,
                 "last_command": self.last_command,
+                "muted": self.muted,
             }
 
     def configure(self, host: str, port: int) -> None:
@@ -154,6 +156,38 @@ class TCIClient:
                 self._disconnect_locked()
                 return False, self.last_error
 
+    def set_mute(self, muted: bool) -> tuple[bool, str]:
+        value = 1 if muted else 0
+        bool_token = "true" if muted else "false"
+        commands = [
+            f"mute:{value};",
+            f"mute:0,{value};",
+            f"mute:{bool_token};",
+            f"mute:0,{bool_token};",
+            f"audio_mute:{value};",
+            f"audio_mute:0,{value};",
+            f"rx_mute:{value};",
+            f"rx_mute:0,{value};",
+        ]
+        with self._lock:
+            if self._ws is None:
+                self.last_error = "Not connected"
+                return False, self.last_error
+            try:
+                sent: list[str] = []
+                for cmd in commands:
+                    self._ws.send(cmd)
+                    sent.append(cmd)
+                    time.sleep(0.02)
+                self.muted = bool(muted)
+                self.last_command = " ".join(sent)
+                self.last_error = ""
+                return True, self.last_command
+            except Exception as exc:
+                self.last_error = str(exc)
+                self._disconnect_locked()
+                return False, self.last_error
+
 
 TCI = TCIClient()
 
@@ -190,4 +224,3 @@ def bootstrap_tci_from_config() -> None:
     host = str(tci_cfg.get("host", TCI.host))
     port = int(tci_cfg.get("port", TCI.port))
     TCI.configure(host, port)
-
