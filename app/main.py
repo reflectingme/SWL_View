@@ -24,7 +24,7 @@ except ImportError:
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.6"
+APP_VERSION = "0.2.7"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 

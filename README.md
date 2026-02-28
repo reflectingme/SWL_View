@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
  TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
 
-- Version: 0.2.6
+- Version: 0.2.7
 - By: GW3JVB
 - Copyright: © 2026
 
@@ -31,7 +31,7 @@ Local shortwave schedule viewer based on EiBi data.
   - Raw TCI command sender (`Send Raw`)
 - Local config persistence in `app/local_config.json` (TCI host/port).
 
-## Setup
+## Setup (macOS / Linux)
 
 ```bash
 python3 -m venv .venv
@@ -39,15 +39,33 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## Run
+## Setup (Windows PowerShell)
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+## Run (macOS / Linux)
 
 ```bash
 ./run.sh
 ```
 
-`run.sh` always runs the scraper first, then starts Flask:
-1. `python scraper/scrape_eibi.py`
-2. `python app/main.py`
+## Run (Windows)
+
+```powershell
+.\run.bat
+```
+
+Single runtime entrypoint (all platforms):
+1. `python run.py` (runs scraper, then starts Flask)
+2. `python run.py --skip-scrape` (start Flask only)
+
+Wrappers:
+- `run.sh` (macOS/Linux): activates `.venv` and calls `python run.py`
+- `run.bat` (Windows): activates `.venv` and calls `python run.py`
 
 Then open `http://127.0.0.1:5000/`.
 
@@ -55,7 +73,7 @@ Then open `http://127.0.0.1:5000/`.
 
 - EiBi schedules update by season (`Axx` / `Bxx`), so refresh your local data at least monthly.
 - Also refresh immediately before use if you want the latest schedule data.
-- If you are not using `run.sh`, run manually:
+- If you are not using `run.py`/`run.sh`, run manually:
   ```bash
   python scraper/scrape_eibi.py
   python app/main.py
