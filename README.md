@@ -2,7 +2,7 @@
 
 Local shortwave schedule viewer based on EiBi data.
 
-- Version: 0.2.0
+- Version: 0.2.1
 - By: GW3JVB
 - Copyright: © 2026
 

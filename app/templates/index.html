@@ -12,12 +12,23 @@
             <p>Original rows: {{ data.raw_count }}</p>
             <p>Merged rows: {{ data.count }}</p>
             <p>Live now (UTC {{ data.now_utc_hhmm }}): {{ data.live_count }}</p>
-            <p>Time columns: {{ data.column_count }} | Frequency columns: {{ data.freq_column_count }} | Time slots: {{ data.time_slot_count }} | Frequency slots: {{ data.freq_slot_count }}</p>
+            <p>Time columns: {{ data.column_count }} | Frequency columns: {{ data.freq_column_count }}</p>
+            <p>Time slots: {{ data.time_slot_count }} | Frequency slots: {{ data.freq_slot_count }}</p>
         </div>
-        <aside class="hover-details empty" id="hoverDetails">
-            <h3>Station Details</h3>
-            <p>Hover a station card to see full details here.</p>
-        </aside>
+        <div class="details-block">
+            <div class="details-title">Current Active</div>
+            <aside class="selected-details empty" id="selectedDetails">
+                <h3>Selected Station</h3>
+                <p>Click a station card to lock details here.</p>
+            </aside>
+        </div>
+        <div class="details-block">
+            <div class="details-title">On Hover</div>
+            <aside class="hover-details empty" id="hoverDetails">
+                <h3>Station Details</h3>
+                <p>Hover a station card to see full details here.</p>
+            </aside>
+        </div>
     </div>
 
     <div class="filter-bar">
@@ -70,7 +81,13 @@
     </div>
     <div class="freq-jump-bar" id="freqJumpBar">
         {% for jump in data.freq_jumps %}
-            <button type="button" class="freq-jump-btn" data-ratio="{{ jump.ratio }}" title="{{ jump.label }}">{{ jump.start_label }}</button>
+            <button
+                type="button"
+                class="freq-jump-btn"
+                data-ratio="{{ jump.ratio }}"
+                data-start-khz="{{ jump.start_khz }}"
+                title="{{ jump.label }}"
+            >{{ jump.start_label }}</button>
         {% endfor %}
     </div>
     {% endif %}
@@ -79,7 +96,10 @@
     <div class="column-scroll view-pane" id="columnView">
         {% for column in data.columns %}
             <div class="schedule-column{% if column.is_live_now %} live-column{% endif %}">
-                <div class="column-header">{{ column.time_days_display }}</div>
+                <div class="column-header two-line-meta">
+                    <div>{{ column.time_display }}</div>
+                    <div>{{ column.days }}</div>
+                </div>
                 {% for entry in column.entries %}
                     <div
                         class="station-card{% if entry.is_live_now %} live-now{% endif %}"
@@ -107,7 +127,7 @@
     {% if data.view_mode == "freqcolumns" %}
     <div class="column-scroll view-pane" id="freqColumnView">
         {% for column in data.freq_columns %}
-            <div class="schedule-column{% if column.is_live_now %} live-column{% endif %}">
+            <div class="schedule-column{% if column.is_live_now %} live-column{% endif %}" data-frequency-khz="{{ column.frequency_khz }}">
                 <div class="column-header">{{ column.frequency_display }}</div>
                 {% for entry in column.entries %}
                     <div
@@ -123,7 +143,10 @@
                         data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
                     >
                         <div class="card-main">
-                            <div class="freq">{{ entry.time_days_display }}</div>
+                            <div class="freq two-line-meta">
+                                <div>{{ entry.time_display }}</div>
+                                <div>{{ entry.days }}</div>
+                            </div>
                             <div class="station"><span class="flag">{{ entry.flag }}</span> {{ entry.station }}</div>
                         </div>
                     </div>
@@ -226,6 +249,7 @@
         const tciRawCmd = document.getElementById("tciRawCmd");
         const tciRawSendBtn = document.getElementById("tciRawSendBtn");
         const selectedStation = document.getElementById("selectedStation");
+        const selectedDetails = document.getElementById("selectedDetails");
         const columnView = document.getElementById("columnView");
         const freqColumnView = document.getElementById("freqColumnView");
         const gridView = document.getElementById("gridView");
@@ -307,6 +331,25 @@
             hoverDetails.innerHTML = `
                 <h3>Station Details</h3>
                 <p>Hover a station card to see full details here.</p>
+            `;
+        }
+
+        function setSelectedDetails(card) {
+            if (!card) return;
+            const esc = (value) => String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+            selectedDetails.classList.remove("empty");
+            selectedDetails.innerHTML = `
+                <h3>${esc(card.dataset.flag || "🌐")} ${esc(card.dataset.station)}</h3>
+                <p><strong>Frequency:</strong> ${esc(card.dataset.frequency)}</p>
+                <p><strong>Status:</strong> ${esc(card.dataset.live)}</p>
+                <p><strong>Time:</strong> ${esc(card.dataset.time)}</p>
+                <p><strong>Language/Target:</strong> ${esc(card.dataset.langTarget)}</p>
+                <p><strong>Remarks:</strong> ${esc(card.dataset.remarks || "-")}</p>
             `;
         }
 
@@ -394,6 +437,7 @@
             selectedCard = card;
             card.classList.add("selected-station");
             selectedStation.textContent = `Selected: ${card.dataset.frequency} ${card.dataset.flag || ""} ${card.dataset.station}`;
+            setSelectedDetails(card);
 
             const response = await fetch("/api/tci/tune", {
                 method: "POST",
@@ -446,8 +490,21 @@
                 if (!btn) return;
                 const pane = activePane();
                 if (!pane) return;
-                const ratio = Number(btn.dataset.ratio || "0");
-                const target = Math.max(0, (pane.scrollWidth - pane.clientWidth) * ratio);
+                let target = 0;
+
+                if (pane === freqColumnView) {
+                    const startKhz = Number(btn.dataset.startKhz || "0");
+                    const cols = Array.from(freqColumnView.querySelectorAll(".schedule-column"))
+                        .filter((col) => col.style.display !== "none");
+                    const hit = cols.find((col) => Number(col.dataset.frequencyKhz || "0") >= startKhz);
+                    const pick = hit || cols[cols.length - 1];
+                    if (pick) {
+                        target = pick.offsetLeft;
+                    }
+                } else {
+                    const ratio = Number(btn.dataset.ratio || "0");
+                    target = Math.max(0, (pane.scrollWidth - pane.clientWidth) * ratio);
+                }
                 pane.scrollLeft = target;
                 topScrollbar.scrollLeft = target;
             });

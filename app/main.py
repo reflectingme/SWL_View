@@ -13,7 +13,7 @@ except Exception:
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.2.1"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 DEFAULT_TCI_MODE = "am"
@@ -386,8 +386,9 @@ def _merge_entries(raw_entries: list[dict]) -> list[dict]:
         item["day_set"] = [d for d in DAY_ORDER if d in day_set]
         item["days"] = _day_set_to_display(day_set, item["days_raw"])
         item["flag"] = _flag_from_itu(item["itu"])
+        item["time_display"] = _format_time_range(item["time_on"], item["time_off"])
         item["time_days_display"] = _join_non_empty(
-            _format_time_range(item["time_on"], item["time_off"]),
+            item["time_display"],
             item["days"],
         )
         item["lang_target_display"] = _join_non_empty(item["language"], item["target"])
@@ -420,6 +421,7 @@ def _build_columns(entries: list[dict]) -> list[dict]:
                 "time_on": time_on,
                 "time_off": time_off,
                 "days": days,
+                "time_display": _format_time_range(time_on, time_off),
                 "time_days_display": _join_non_empty(_format_time_range(time_on, time_off), days),
                 "entries": items,
                 "sort_key": (start_sort if start_sort is not None else 10_000, time_off, days),
@@ -597,20 +599,21 @@ def _build_freq_jumps(entries: list[dict], segments: int = 10) -> list[dict]:
     freqs = sorted({int(e["frequency_khz"]) for e in entries if int(e["frequency_khz"]) > 0})
     if not freqs or segments <= 1:
         return []
-    min_f = freqs[0]
-    max_f = freqs[-1]
-    span = max(1, max_f - min_f)
     jumps: list[dict] = []
+    n = len(freqs)
     for i in range(segments):
-        start = min_f + int((span * i) / segments)
-        end = min_f + int((span * (i + 1)) / segments)
-        ratio = i / (segments - 1)
+        start_idx = min(n - 1, int((i * n) / segments))
+        end_idx = min(n - 1, int((((i + 1) * n) / segments) - 1))
+        start = freqs[start_idx]
+        end = freqs[end_idx]
+        ratio = start_idx / max(1, n - 1)
         jumps.append(
             {
                 "index": i + 1,
                 "ratio": ratio,
-                "start_label": f"{start / 1000:.1f} MHz",
-                "label": f"{start / 1000:.1f}-{end / 1000:.1f} MHz",
+                "start_khz": start,
+                "start_label": f"{start / 1000:.3f} MHz",
+                "label": f"{start / 1000:.3f}-{end / 1000:.3f} MHz",
             }
         )
     return jumps

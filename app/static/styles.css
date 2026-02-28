@@ -25,7 +25,20 @@ body {
     gap: 18px;
 }
 
-.hover-details {
+.details-block {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.details-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #4b5563;
+}
+
+.hover-details,
+.selected-details {
     min-width: 320px;
     max-width: 520px;
     height: 148px;
@@ -37,18 +50,21 @@ body {
     overflow-y: auto;
 }
 
-.hover-details h3 {
+.hover-details h3,
+.selected-details h3 {
     margin: 0 0 8px;
     font-size: 16px;
 }
 
-.hover-details p {
+.hover-details p,
+.selected-details p {
     margin: 4px 0;
     font-size: 13px;
     line-height: 1.3;
 }
 
-.hover-details.empty {
+.hover-details.empty,
+.selected-details.empty {
     color: #5f6368;
 }
 
@@ -253,6 +269,10 @@ body {
     border-radius: 10px;
     border: 1px solid #dcdcdc;
     padding: 8px 8px;
+}
+
+.two-line-meta {
+    line-height: 1.15;
 }
 
 .time-grid {
