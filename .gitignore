@@ -23,3 +23,6 @@ venv/
 # Local output
 scraper/output/*.json
 app/local_config.json
+
+# Release artifacts
+release/dist/

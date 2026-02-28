@@ -7,6 +7,16 @@ Local shortwave schedule viewer based on EiBi data.
 - By: GW3JVB
 - Copyright: © 2026
 
+## Tested Platforms
+
+This software has been tested on the following platforms:
+- Mac Studio (Apple M2 Max) running macOS Tahoe 26.3 - Tested - OK, TCI Status Connection confirmed
+
+Tests todo:
+- Mac Studio (Apple M2 Max) running Win11 ARM in a Virtual Machine using Parallels for Mac Pro - not yet tested
+
+All testing carried out using Thetis v2.10.3.13 x64
+
 ## Features
 
 - EiBi CSV scrape over HTTP (`http://eibispace.de/dx/`) with JSON output.
@@ -68,6 +78,20 @@ Wrappers:
 - `run.bat` (Windows): activates `.venv` and calls `python run.py`
 
 Then open `http://127.0.0.1:5000/`.
+
+## Build Release Packages
+
+Create platform zip packages from one command:
+
+```bash
+python release/make_release_packages.py
+```
+
+This creates:
+- `release/dist/SWL_View-macos-vX.Y.Z.zip`
+- `release/dist/SWL_View-win11-vX.Y.Z.zip`
+
+Each package includes the full project and a platform-specific `QUICKSTART.md`.
 
 ## Data Refresh Guidance
 
