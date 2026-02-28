@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SWL View</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <h1>SWL View - EiBi Schedule</h1>
+    <div class="top-summary">
+        <div class="top-meta">
+            <p>Original rows: {{ data.raw_count }}</p>
+            <p>Merged rows: {{ data.count }}</p>
+            <p>Live now (UTC {{ data.now_utc_hhmm }}): {{ data.live_count }}</p>
+            <p>Time columns: {{ data.column_count }} | Frequency columns: {{ data.freq_column_count }} | Time slots: {{ data.time_slot_count }} | Frequency slots: {{ data.freq_slot_count }}</p>
+        </div>
+        <aside class="hover-details empty" id="hoverDetails">
+            <h3>Station Details</h3>
+            <p>Hover a station card to see full details here.</p>
+        </aside>
+    </div>
+
+    <div class="filter-bar">
+        <label class="toggle">
+            <input type="checkbox" id="liveOnlyToggle">
+            Show only live now
+        </label>
+        <label class="toggle">
+            View
+            <select id="viewToggle">
+                <option value="columns" {% if data.view_mode == "columns" %}selected{% endif %}>Columns</option>
+                <option value="freqcolumns" {% if data.view_mode == "freqcolumns" %}selected{% endif %}>Frequency Columns</option>
+                <option value="grid" {% if data.view_mode == "grid" %}selected{% endif %}>Time x Day Grid</option>
+                <option value="freqgrid" {% if data.view_mode == "freqgrid" %}selected{% endif %}>Freq x Time Grid</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="top-scrollbar" id="topScrollbar">
+        <div class="top-scrollbar-inner" id="topScrollbarInner"></div>
+    </div>
+
+    {% if data.view_mode == "columns" %}
+    <div class="column-scroll view-pane" id="columnView">
+        {% for column in data.columns %}
+            <div class="schedule-column{% if column.is_live_now %} live-column{% endif %}">
+                <div class="column-header">{{ column.time_days_display }}</div>
+                {% for entry in column.entries %}
+                    <div
+                        class="station-card{% if entry.is_live_now %} live-now{% endif %}"
+                        tabindex="0"
+                        data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                        data-flag="{{ entry.flag }}"
+                        data-station="{{ entry.station|e }}"
+                        data-time="{{ entry.time_days_display|e }}"
+                        data-lang-target="{{ entry.lang_target_display|e }}"
+                        data-remarks="{{ entry.remarks|e }}"
+                        data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
+                    >
+                        <div class="card-main">
+                            <div class="freq">{{ "%.3f"|format(entry.frequency_khz / 1000) }} MHz</div>
+                            <div class="station"><span class="flag">{{ entry.flag }}</span> {{ entry.station }}</div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if data.view_mode == "freqcolumns" %}
+    <div class="column-scroll view-pane" id="freqColumnView">
+        {% for column in data.freq_columns %}
+            <div class="schedule-column{% if column.is_live_now %} live-column{% endif %}">
+                <div class="column-header">{{ column.frequency_display }}</div>
+                {% for entry in column.entries %}
+                    <div
+                        class="station-card{% if entry.is_live_now %} live-now{% endif %}"
+                        tabindex="0"
+                        data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                        data-flag="{{ entry.flag }}"
+                        data-station="{{ entry.station|e }}"
+                        data-time="{{ entry.time_days_display|e }}"
+                        data-lang-target="{{ entry.lang_target_display|e }}"
+                        data-remarks="{{ entry.remarks|e }}"
+                        data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
+                    >
+                        <div class="card-main">
+                            <div class="freq">{{ entry.time_days_display }}</div>
+                            <div class="station"><span class="flag">{{ entry.flag }}</span> {{ entry.station }}</div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if data.view_mode == "grid" %}
+    <div class="grid-scroll view-pane" id="gridView">
+        <div class="time-grid" style="grid-template-columns: 92px repeat({{ data.time_slot_count }}, 170px);">
+            <div class="grid-corner">Day / Time</div>
+            {% for slot in data.time_slots %}
+                <div class="grid-time-header">{{ slot.display }}</div>
+            {% endfor %}
+
+            {% for row in data.day_rows %}
+                <div class="grid-day-header">{{ row.day_label }}</div>
+                {% for cell in row.cells %}
+                    <div class="grid-cell{% if cell.is_live_now %} live-cell{% endif %}">
+                        {% for entry in cell.entries %}
+                            <div
+                                class="station-card{% if entry.is_live_now %} live-now{% endif %}"
+                                tabindex="0"
+                                data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                                data-flag="{{ entry.flag }}"
+                                data-station="{{ entry.station|e }}"
+                                data-time="{{ entry.time_days_display|e }}"
+                                data-lang-target="{{ entry.lang_target_display|e }}"
+                                data-remarks="{{ entry.remarks|e }}"
+                                data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
+                            >
+                                <div class="card-main">
+                                    <div class="freq">{{ "%.3f"|format(entry.frequency_khz / 1000) }} MHz</div>
+                                    <div class="station"><span class="flag">{{ entry.flag }}</span> {{ entry.station }}</div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if data.view_mode == "freqgrid" %}
+    <div class="grid-scroll view-pane" id="freqGridView">
+        <div class="freq-plot-wrap">
+            <svg class="freq-plot" viewBox="0 0 {{ data.freq_plot.width }} {{ data.freq_plot.height }}" role="img" aria-label="Frequency by time scatter plot">
+                <line x1="{{ data.freq_plot.left }}" y1="{{ data.freq_plot.top }}" x2="{{ data.freq_plot.left }}" y2="{{ data.freq_plot.height - data.freq_plot.bottom }}" class="plot-axis"></line>
+                <line x1="{{ data.freq_plot.left }}" y1="{{ data.freq_plot.height - data.freq_plot.bottom }}" x2="{{ data.freq_plot.width - data.freq_plot.right }}" y2="{{ data.freq_plot.height - data.freq_plot.bottom }}" class="plot-axis"></line>
+
+                <text x="{{ data.freq_plot.left }}" y="{{ data.freq_plot.height - 8 }}" class="plot-label">{{ '%.3f'|format(data.freq_plot.min_freq / 1000) }} MHz</text>
+                <text x="{{ data.freq_plot.width - data.freq_plot.right - 66 }}" y="{{ data.freq_plot.height - 8 }}" class="plot-label">{{ '%.3f'|format(data.freq_plot.max_freq / 1000) }} MHz</text>
+                <text x="8" y="{{ data.freq_plot.top + 10 }}" class="plot-label">00:00</text>
+                <text x="8" y="{{ data.freq_plot.height - data.freq_plot.bottom }}" class="plot-label">23:59</text>
+
+                {% for point in data.freq_plot.points %}
+                    <circle
+                        cx="{{ point.x }}"
+                        cy="{{ point.y }}"
+                        r="2.8"
+                        tabindex="0"
+                        class="station-card station-point{% if point.is_live_now %} live-now{% endif %}"
+                        data-frequency="{{ point.freq_display }}"
+                        data-flag="{{ point.flag }}"
+                        data-station="{{ point.station|e }}"
+                        data-time="{{ point.time_display|e }}"
+                        data-lang-target="{{ point.lang_target|e }}"
+                        data-remarks="{{ point.remarks|e }}"
+                        data-live="{{ 'Live now' if point.is_live_now else 'Not live now' }}"
+                    />
+                {% endfor %}
+            </svg>
+        </div>
+    </div>
+    {% endif %}
+
+    <script>
+        const liveToggle = document.getElementById("liveOnlyToggle");
+        const viewToggle = document.getElementById("viewToggle");
+        const hoverDetails = document.getElementById("hoverDetails");
+        const topScrollbar = document.getElementById("topScrollbar");
+        const topScrollbarInner = document.getElementById("topScrollbarInner");
+        const columnView = document.getElementById("columnView");
+        const freqColumnView = document.getElementById("freqColumnView");
+        const gridView = document.getElementById("gridView");
+        const freqGridView = document.getElementById("freqGridView");
+        let syncLock = false;
+
+        function activePane() {
+            if (viewToggle.value === "freqgrid") {
+                return freqGridView || gridView || freqColumnView || columnView;
+            }
+            if (viewToggle.value === "grid") {
+                return gridView || freqGridView || freqColumnView || columnView;
+            }
+            if (viewToggle.value === "freqcolumns") {
+                return freqColumnView || columnView || gridView || freqGridView;
+            }
+            return columnView || freqColumnView || gridView || freqGridView;
+        }
+
+        function syncTopScrollbarWidth() {
+            const pane = activePane();
+            if (!pane) return;
+            topScrollbarInner.style.width = `${pane.scrollWidth}px`;
+        }
+
+        function setView() {
+            const targetView = viewToggle.value;
+            const url = new URL(window.location.href);
+            url.searchParams.set("view", targetView);
+            window.location.href = url.toString();
+        }
+
+        function applyLiveFilter() {
+            const liveOnly = liveToggle.checked;
+            const cards = Array.from(document.querySelectorAll(".station-card"));
+            for (const card of cards) {
+                const show = !liveOnly || card.classList.contains("live-now");
+                card.style.display = show ? "" : "none";
+            }
+
+            const columns = Array.from(document.querySelectorAll(".schedule-column"));
+            for (const column of columns) {
+                const visibleCount = Array.from(column.querySelectorAll(".station-card")).filter((c) => c.style.display !== "none").length;
+                column.style.display = visibleCount > 0 ? "" : "none";
+            }
+
+            const cells = Array.from(document.querySelectorAll(".grid-cell"));
+            for (const cell of cells) {
+                const visibleCount = Array.from(cell.querySelectorAll(".station-card")).filter((c) => c.style.display !== "none").length;
+                cell.classList.toggle("empty-cell", visibleCount === 0);
+            }
+
+            syncTopScrollbarWidth();
+        }
+
+        function setHoverDetails(card) {
+            if (!card) return;
+            const esc = (value) => String(value ?? "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#39;");
+            hoverDetails.classList.remove("empty");
+            hoverDetails.innerHTML = `
+                <h3>${esc(card.dataset.flag || "🌐")} ${esc(card.dataset.station)}</h3>
+                <p><strong>Frequency:</strong> ${esc(card.dataset.frequency)}</p>
+                <p><strong>Status:</strong> ${esc(card.dataset.live)}</p>
+                <p><strong>Time:</strong> ${esc(card.dataset.time)}</p>
+                <p><strong>Language/Target:</strong> ${esc(card.dataset.langTarget)}</p>
+                <p><strong>Remarks:</strong> ${esc(card.dataset.remarks || "-")}</p>
+            `;
+        }
+
+        function clearHoverDetails() {
+            hoverDetails.classList.add("empty");
+            hoverDetails.innerHTML = `
+                <h3>Station Details</h3>
+                <p>Hover a station card to see full details here.</p>
+            `;
+        }
+
+        function bindHoverEvents(container) {
+            if (!container) return;
+            container.addEventListener("mouseover", (event) => {
+                const card = event.target.closest(".station-card");
+                if (card) setHoverDetails(card);
+            });
+            container.addEventListener("focusin", (event) => {
+                const card = event.target.closest(".station-card");
+                if (card) setHoverDetails(card);
+            });
+            container.addEventListener("mouseleave", clearHoverDetails);
+        }
+
+        function bindScrollSync(container) {
+            if (!container) return;
+            container.addEventListener("scroll", () => {
+                if (syncLock || container !== activePane()) return;
+                syncLock = true;
+                topScrollbar.scrollLeft = container.scrollLeft;
+                syncLock = false;
+            });
+        }
+
+        bindHoverEvents(columnView);
+        bindHoverEvents(freqColumnView);
+        bindHoverEvents(gridView);
+        bindHoverEvents(freqGridView);
+        bindScrollSync(columnView);
+        bindScrollSync(freqColumnView);
+        bindScrollSync(gridView);
+        bindScrollSync(freqGridView);
+
+        topScrollbar.addEventListener("scroll", () => {
+            if (syncLock) return;
+            const pane = activePane();
+            if (!pane) return;
+            syncLock = true;
+            pane.scrollLeft = topScrollbar.scrollLeft;
+            syncLock = false;
+        });
+        window.addEventListener("resize", syncTopScrollbarWidth);
+
+        liveToggle.addEventListener("change", applyLiveFilter);
+        viewToggle.addEventListener("change", setView);
+
+        applyLiveFilter();
+        syncTopScrollbarWidth();
+    </script>
+</body>
+</html>
