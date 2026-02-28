@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 import re
 import threading
@@ -116,7 +117,26 @@ class TCIClient:
             station_tag = "M0SWL"
 
         freq_hz = int(round(float(frequency_khz) * 1000))
-        commands = [f"spot:{station_tag},{freq_hz},ssb-swl[{int(ttl_seconds)}];"]
+        mode_raw = (mode or "").strip().lower()
+        mode_map = {
+            "am": "AM",
+            "fm": "FM",
+            "lsb": "LSB",
+            "usb": "USB",
+            "ssb": "SSB",
+            "cw": "CW",
+        }
+        spot_mode = mode_map.get(mode_raw, "SSB")
+        utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        payload = {
+            "spotter": "SWL_View",
+            "comment": f"SWL schedule {mode_raw or 'am'}",
+            "utctime": utc_now,
+            "textcolor": "-1",
+            "ttl": int(ttl_seconds),
+        }
+        payload_json = json.dumps(payload, separators=(",", ":"))
+        commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},20381,[json]{payload_json};"]
 
         with self._lock:
             if self._ws is None:
