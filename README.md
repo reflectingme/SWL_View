@@ -1,7 +1,7 @@
 # SWL View
 
 Local shortwave schedule viewer based on EiBi data.
- TCI functionality has been implements so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electrnics SunSDR transceivers (though not tested on SunSDR)
+ TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
 
 - Version: 0.2.4
 - By: GW3JVB
