@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
  TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
 
-- Version: 0.2.9
+- Version: 0.2.10
 - By: GW3JVB
 - Copyright: © 2026
 
@@ -38,6 +38,7 @@ All testing carried out using Thetis v2.10.3.13 x64
   - `TCI Profile` selector:
     - `Thetis` (default)
     - `Expert (SunSDR)`
+    - If you are using a SunSDR radio, you must select `Expert (SunSDR)`.
   - Tune by clicking station cards
   - Audio mute toggle (`Audio: ON` / `Audio: MUTED`)
   - Optional spot send (`Send spot`)
@@ -105,6 +106,12 @@ Each package includes the full project and a platform-specific `QUICKSTART.md`.
   python scraper/scrape_eibi.py
   python app/main.py
   ```
+
+## TCI Profile Selection
+
+- Use `Thetis` profile for Thetis TCI servers.
+- Use `Expert (SunSDR)` profile for Expert Electronics SunSDR TCI servers.
+- SunSDR users: this selection is required for correct spot command format.
 
 ## TCI Quick Test (Thetis)
 
