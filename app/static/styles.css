@@ -76,23 +76,27 @@ body {
 
 .donation-actions {
     display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    width: 100%;
 }
 
 .donation-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 217px;
-    height: 60px;
-    padding: 7px 10px;
+    width: 78%;
+    max-width: 170px;
+    min-height: 34px;
+    padding: 4px 8px;
     border-radius: 8px;
     border: 1px solid #d1d5db;
     text-decoration: none;
-    font-size: 16px;
+    font-size: 13px;
     font-weight: 700;
+    white-space: nowrap;
     color: #111827;
     background: #ffffff;
     box-sizing: border-box;
@@ -112,6 +116,13 @@ body {
     background: #fff7cc;
     border-color: #facc15;
     color: #713f12;
+}
+
+.donation-details {
+    min-width: 240px;
+    max-width: 280px;
+    height: 148px;
+    overflow-y: hidden;
 }
 
 .filter-bar {

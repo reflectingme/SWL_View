@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
  TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
 
-- Version: 0.2.4
+- Version: 0.2.5
 - By: GW3JVB
 - Copyright: © 2026
 
@@ -36,8 +36,7 @@ Local shortwave schedule viewer based on EiBi data.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r scraper/requirements.txt
-pip install flask websocket-client
+pip install -r requirements.txt
 ```
 
 ## Run
@@ -46,7 +45,21 @@ pip install flask websocket-client
 ./run.sh
 ```
 
+`run.sh` always runs the scraper first, then starts Flask:
+1. `python scraper/scrape_eibi.py`
+2. `python app/main.py`
+
 Then open `http://127.0.0.1:5000/`.
+
+## Data Refresh Guidance
+
+- EiBi schedules update by season (`Axx` / `Bxx`), so refresh your local data at least monthly.
+- Also refresh immediately before use if you want the latest schedule data.
+- If you are not using `run.sh`, run manually:
+  ```bash
+  python scraper/scrape_eibi.py
+  python app/main.py
+  ```
 
 ## TCI Quick Test (Thetis)
 
