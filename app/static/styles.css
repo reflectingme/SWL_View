@@ -4,6 +4,13 @@ body {
     background: #f4f4f4;
 }
 
+.app-meta {
+    margin-top: -8px;
+    margin-bottom: 12px;
+    color: #4b5563;
+    font-size: 13px;
+}
+
 .hidden {
     display: none;
 }
@@ -50,6 +57,7 @@ body {
     top: 0;
     z-index: 10;
     display: flex;
+    flex-wrap: wrap;
     gap: 16px;
     align-items: center;
     background: #f4f4f4;
@@ -63,9 +71,98 @@ body {
     font-weight: 600;
 }
 
+.toggle.compact {
+    font-size: 12px;
+    font-weight: 600;
+}
+
 .toggle select {
     font-size: 13px;
     padding: 3px 8px;
+}
+
+.tci-panel {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 6px;
+}
+
+.tci-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+}
+
+.tci-panel input {
+    width: 120px;
+    font-size: 12px;
+    padding: 3px 6px;
+}
+
+#tciPort {
+    width: 80px;
+}
+
+.tci-panel button {
+    font-size: 12px;
+    padding: 3px 8px;
+    cursor: pointer;
+}
+
+.tci-status {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+}
+
+.tci-status.ok {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.tci-status.bad {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.tci-message {
+    max-width: 340px;
+    font-size: 12px;
+    color: #6b7280;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.selected-station-label {
+    max-width: 320px;
+    font-size: 12px;
+    color: #1f2937;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.tci-raw {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.tci-raw input {
+    width: 420px;
+    max-width: 52vw;
+    font-size: 12px;
+    padding: 3px 6px;
+}
+
+.tci-raw button {
+    font-size: 12px;
+    padding: 3px 8px;
+    cursor: pointer;
 }
 
 .top-scrollbar {
@@ -78,6 +175,51 @@ body {
 
 .top-scrollbar-inner {
     height: 1px;
+}
+
+.freq-jump-bar {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: 6px;
+    margin: 8px 0 6px;
+}
+
+.freq-nav-controls {
+    display: flex;
+    gap: 8px;
+    margin: 8px 0 4px;
+}
+
+.freq-nav-spacer {
+    flex: 1;
+}
+
+.freq-nav-btn {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.freq-nav-btn:hover {
+    background: #f3f4f6;
+}
+
+.freq-jump-btn {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    background: #ffffff;
+    cursor: pointer;
+}
+
+.freq-jump-btn:hover {
+    background: #f3f4f6;
 }
 
 .view-pane {
@@ -192,6 +334,16 @@ body {
     border-color: #4caf50;
 }
 
+.station-card.selected-station {
+    background: #fff4cc;
+    border: 2px solid #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.station-card.live-now.selected-station {
+    background: #fef08a;
+}
+
 .station-point {
     fill: #3b82f6;
     stroke: #1d4ed8;
@@ -202,6 +354,11 @@ body {
 .station-point.live-now {
     fill: #22c55e;
     stroke: #15803d;
+}
+
+.station-point.selected-station {
+    stroke: #f59e0b;
+    stroke-width: 2;
 }
 
 .card-main .freq {
@@ -222,4 +379,10 @@ body {
 
 .flag {
     margin-right: 4px;
+}
+
+.app-footer {
+    margin-top: 12px;
+    color: #4b5563;
+    font-size: 12px;
 }

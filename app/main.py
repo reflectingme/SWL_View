@@ -1,10 +1,24 @@
-from flask import Flask, render_template, request
+from flask import Flask, jsonify, render_template, request
 from datetime import datetime, timezone
 import json
 from pathlib import Path
 import re
+import threading
+import time
+
+try:
+    import websocket  # websocket-client
+except Exception:
+    websocket = None
 
 app = Flask(__name__)
+
+APP_VERSION = "0.2.0"
+APP_AUTHOR = "GW3JVB"
+APP_COPYRIGHT = "© 2026"
+DEFAULT_TCI_MODE = "am"
+CONFIG_FILE = (Path(__file__).parent.parent / "app" / "local_config.json").resolve()
+DEFAULT_SEND_SPOT = True
 
 DATA_FILE = (Path(__file__).parent.parent / "scraper" / "output" / "eibi_latest.json").resolve()
 DAY_ORDER = ["mo", "tu", "we", "th", "fr", "sa", "su"]
@@ -31,6 +45,184 @@ ITU_TO_ISO2 = {
 }
 
 
+class TCIClient:
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._ws = None
+        self.host = "127.0.0.1"
+        self.port = 40001
+        self.last_error = ""
+        self.last_command = ""
+
+    def status(self) -> dict:
+        with self._lock:
+            connected = self._ws is not None
+            return {
+                "enabled": websocket is not None,
+                "connected": connected,
+                "host": self.host,
+                "port": self.port,
+                "last_error": self.last_error,
+                "last_command": self.last_command,
+            }
+
+    def configure(self, host: str, port: int) -> None:
+        with self._lock:
+            self.host = host.strip() or "127.0.0.1"
+            self.port = int(port)
+
+    def connect(self) -> tuple[bool, str]:
+        if websocket is None:
+            return False, "websocket-client not installed"
+        with self._lock:
+            self._disconnect_locked()
+            try:
+                url = f"ws://{self.host}:{self.port}"
+                self._ws = websocket.create_connection(url, timeout=2.0)
+                self.last_error = ""
+                return True, f"Connected to {url}"
+            except Exception as exc:
+                self.last_error = str(exc)
+                self._ws = None
+                return False, self.last_error
+
+    def disconnect(self) -> None:
+        with self._lock:
+            self._disconnect_locked()
+
+    def _disconnect_locked(self) -> None:
+        if self._ws is not None:
+            try:
+                self._ws.close()
+            except Exception:
+                pass
+            self._ws = None
+
+    def tune(self, frequency_khz: float, mode: str | None = None) -> tuple[bool, str]:
+        # Common TCI VFO command form used by ExpertSDR/Thetis integrations.
+        freq_hz = int(round(float(frequency_khz) * 1000))
+        commands: list[str] = [f"vfo:0,0,{freq_hz};"]
+
+        # TCI implementations differ slightly for mode-setting command syntax.
+        mode_value = (mode or "").strip().lower()
+        if mode_value:
+            commands.extend(
+                [
+                    f"modulation:0,0,{mode_value};",
+                    f"modulation:0,{mode_value};",
+                    f"mode:0,0,{mode_value};",
+                ]
+            )
+
+        with self._lock:
+            if self._ws is None:
+                self.last_error = "Not connected"
+                return False, self.last_error
+            try:
+                sent: list[str] = []
+                for cmd in commands:
+                    self._ws.send(cmd)
+                    sent.append(cmd)
+                    # TCI servers often process commands sequentially.
+                    time.sleep(0.03)
+                self.last_command = " ".join(sent)
+                self.last_error = ""
+                return True, self.last_command
+            except Exception as exc:
+                self.last_error = str(exc)
+                self._disconnect_locked()
+                return False, self.last_error
+
+    def send_spot(
+        self,
+        station: str,
+        frequency_khz: float,
+        mode: str = "am",
+        ttl_seconds: int = 120,
+    ) -> tuple[bool, str]:
+        # Use station text as spot tag so Thetis can display meaningful info.
+        station_tag = re.sub(r"[^A-Za-z0-9/]", "", (station or "").upper())
+        station_tag = station_tag[:12]
+        if not station_tag:
+            station_tag = "M0SWL"
+        freq_hz = int(round(float(frequency_khz) * 1000))
+        commands = [f"spot:{station_tag},{freq_hz},ssb-swl[{int(ttl_seconds)}];"]
+
+        with self._lock:
+            if self._ws is None:
+                self.last_error = "Not connected"
+                return False, self.last_error
+            try:
+                sent = []
+                for cmd in commands:
+                    self._ws.send(cmd)
+                    sent.append(cmd)
+                    time.sleep(0.03)
+                self.last_command = " ".join(sent)
+                self.last_error = ""
+                return True, self.last_command
+            except Exception as exc:
+                self.last_error = str(exc)
+                self._disconnect_locked()
+                return False, self.last_error
+
+    def send_raw(self, command: str) -> tuple[bool, str]:
+        cmd = (command or "").strip()
+        if not cmd:
+            return False, "Empty command"
+        if not cmd.endswith(";"):
+            cmd = f"{cmd};"
+        with self._lock:
+            if self._ws is None:
+                self.last_error = "Not connected"
+                return False, self.last_error
+            try:
+                self._ws.send(cmd)
+                self.last_command = cmd
+                self.last_error = ""
+                return True, cmd
+            except Exception as exc:
+                self.last_error = str(exc)
+                self._disconnect_locked()
+                return False, self.last_error
+
+
+TCI = TCIClient()
+
+
+def _load_local_config() -> dict:
+    if not CONFIG_FILE.exists():
+        return {}
+    try:
+        return json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def _save_local_config(config: dict) -> None:
+    CONFIG_FILE.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def _update_local_tci_config(host: str, port: int) -> None:
+    config = _load_local_config()
+    config.setdefault("tci", {})
+    config["tci"]["host"] = host
+    config["tci"]["port"] = int(port)
+    config["tci"]["send_spot"] = bool(config["tci"].get("send_spot", DEFAULT_SEND_SPOT))
+    _save_local_config(config)
+
+
+def _bootstrap_tci_from_config() -> None:
+    config = _load_local_config()
+    tci_cfg = config.get("tci", {})
+    host = str(tci_cfg.get("host", TCI.host))
+    port = int(tci_cfg.get("port", TCI.port))
+    TCI.configure(host, port)
+
+
+_bootstrap_tci_from_config()
+
+
 def _parse_hhmm(value: str) -> int | None:
     value = (value or "").strip()
     if not value.isdigit():
@@ -38,6 +230,8 @@ def _parse_hhmm(value: str) -> int | None:
     value = value.zfill(4)
     hours = int(value[:2])
     minutes = int(value[2:])
+    if hours == 24 and minutes == 0:
+        return 1440
     if hours > 23 or minutes > 59:
         return None
     return (hours * 60) + minutes
@@ -375,6 +569,7 @@ def _build_freq_time_plot(entries: list[dict]) -> dict:
             {
                 "x": round(x, 2),
                 "y": round(y, 2),
+                "freq_khz": freq,
                 "freq_display": f"{freq / 1000:.3f} MHz",
                 "station": entry["station"],
                 "time_display": entry["time_days_display"],
@@ -396,6 +591,113 @@ def _build_freq_time_plot(entries: list[dict]) -> dict:
         "max_freq": max_freq,
         "points": points,
     }
+
+
+def _build_freq_jumps(entries: list[dict], segments: int = 10) -> list[dict]:
+    freqs = sorted({int(e["frequency_khz"]) for e in entries if int(e["frequency_khz"]) > 0})
+    if not freqs or segments <= 1:
+        return []
+    min_f = freqs[0]
+    max_f = freqs[-1]
+    span = max(1, max_f - min_f)
+    jumps: list[dict] = []
+    for i in range(segments):
+        start = min_f + int((span * i) / segments)
+        end = min_f + int((span * (i + 1)) / segments)
+        ratio = i / (segments - 1)
+        jumps.append(
+            {
+                "index": i + 1,
+                "ratio": ratio,
+                "start_label": f"{start / 1000:.1f} MHz",
+                "label": f"{start / 1000:.1f}-{end / 1000:.1f} MHz",
+            }
+        )
+    return jumps
+
+
+@app.get("/api/tci/status")
+def tci_status():
+    return jsonify(TCI.status())
+
+
+@app.post("/api/tci/connect")
+def tci_connect():
+    payload = request.get_json(silent=True) or {}
+    host = str(payload.get("host", TCI.host))
+    port = int(payload.get("port", TCI.port))
+    send_spot = bool(payload.get("send_spot", _load_local_config().get("tci", {}).get("send_spot", DEFAULT_SEND_SPOT)))
+    TCI.configure(host, port)
+    config = _load_local_config()
+    config.setdefault("tci", {})
+    config["tci"]["host"] = TCI.host
+    config["tci"]["port"] = TCI.port
+    config["tci"]["send_spot"] = send_spot
+    _save_local_config(config)
+    ok, message = TCI.connect()
+    status = TCI.status()
+    status["send_spot"] = send_spot
+    status["message"] = message
+    return jsonify(status), (200 if ok else 400)
+
+
+@app.post("/api/tci/disconnect")
+def tci_disconnect():
+    TCI.disconnect()
+    status = TCI.status()
+    status["message"] = "Disconnected"
+    return jsonify(status)
+
+
+@app.post("/api/tci/settings")
+def tci_settings():
+    payload = request.get_json(silent=True) or {}
+    host = str(payload.get("host", TCI.host))
+    port = int(payload.get("port", TCI.port))
+    send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
+    TCI.configure(host, port)
+    config = _load_local_config()
+    config.setdefault("tci", {})
+    config["tci"]["host"] = TCI.host
+    config["tci"]["port"] = TCI.port
+    config["tci"]["send_spot"] = send_spot
+    _save_local_config(config)
+    status = TCI.status()
+    status["send_spot"] = send_spot
+    status["message"] = "Settings saved"
+    return jsonify(status)
+
+
+@app.post("/api/tci/tune")
+def tci_tune():
+    payload = request.get_json(silent=True) or {}
+    if "frequency_khz" not in payload:
+        return jsonify({"ok": False, "message": "frequency_khz required"}), 400
+    try:
+        frequency_khz = float(payload["frequency_khz"])
+    except Exception:
+        return jsonify({"ok": False, "message": "Invalid frequency_khz"}), 400
+
+    mode = str(payload.get("mode", DEFAULT_TCI_MODE)).strip().lower()
+    ok, result = TCI.tune(frequency_khz, mode=mode)
+    send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
+    spot_result = ""
+    if ok and send_spot:
+        station = str(payload.get("station", "SWL"))
+        spot_ok, spot_result = TCI.send_spot(station=station, frequency_khz=frequency_khz, mode=mode, ttl_seconds=120)
+        ok = ok and spot_ok
+
+    status = TCI.status()
+    return jsonify({"ok": ok, "result": result, "spot_result": spot_result, "status": status}), (200 if ok else 400)
+
+
+@app.post("/api/tci/raw")
+def tci_raw():
+    payload = request.get_json(silent=True) or {}
+    command = str(payload.get("command", ""))
+    ok, result = TCI.send_raw(command)
+    status = TCI.status()
+    return jsonify({"ok": ok, "result": result, "status": status}), (200 if ok else 400)
 
 
 @app.route("/")
@@ -436,6 +738,9 @@ def index():
         freq_plot = _build_freq_time_plot(merged_entries)
 
     data = {
+        "app_version": APP_VERSION,
+        "app_author": APP_AUTHOR,
+        "app_copyright": APP_COPYRIGHT,
         "source_file": source.get("source_file"),
         "fetched_at_utc": source.get("fetched_at_utc"),
         "raw_count": len(source.get("entries", [])),
@@ -452,7 +757,10 @@ def index():
         "day_rows": day_rows,
         "freq_slot_count": len(freq_slot_keys),
         "freq_plot": freq_plot,
+        "freq_jumps": _build_freq_jumps(merged_entries, segments=10),
         "view_mode": view_mode,
+        "tci": TCI.status(),
+        "tci_send_spot": bool(_load_local_config().get("tci", {}).get("send_spot", DEFAULT_SEND_SPOT)),
     }
     return render_template("index.html", data=data)
 

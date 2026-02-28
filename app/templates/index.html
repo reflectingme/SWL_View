@@ -6,6 +6,7 @@
 </head>
 <body>
     <h1>SWL View - EiBi Schedule</h1>
+    <p class="app-meta">Version {{ data.app_version }} | by {{ data.app_author }} | {{ data.app_copyright }}</p>
     <div class="top-summary">
         <div class="top-meta">
             <p>Original rows: {{ data.raw_count }}</p>
@@ -33,11 +34,46 @@
                 <option value="freqgrid" {% if data.view_mode == "freqgrid" %}selected{% endif %}>Freq x Time Grid</option>
             </select>
         </label>
+        <div class="tci-panel">
+            <span class="tci-label">TCI</span>
+            <input id="tciHost" type="text" value="{{ data.tci.host }}" placeholder="IP address">
+            <input id="tciPort" type="number" value="{{ data.tci.port }}" placeholder="Port">
+            <button id="tciConnectBtn" type="button">Connect</button>
+            <button id="tciDisconnectBtn" type="button">Disconnect</button>
+            <label class="toggle compact">
+                <input id="tciSendSpot" type="checkbox" {% if data.tci_send_spot %}checked{% endif %}>
+                Send spot
+            </label>
+            <span id="tciStatus" class="tci-status {% if data.tci.connected %}ok{% else %}bad{% endif %}">
+                {% if data.tci.connected %}Connected{% else %}Disconnected{% endif %}
+            </span>
+            <span id="tciMessage" class="tci-message">{{ data.tci.last_error }}</span>
+            <span id="selectedStation" class="selected-station-label">Selected: none</span>
+        </div>
+        <div class="tci-raw">
+            <input id="tciRawCmd" type="text" placeholder="Raw TCI command (e.g. spot:M0SWL,7400000,ssb-swl[120];)">
+            <button id="tciRawSendBtn" type="button">Send Raw</button>
+        </div>
     </div>
 
     <div class="top-scrollbar" id="topScrollbar">
         <div class="top-scrollbar-inner" id="topScrollbarInner"></div>
     </div>
+
+    {% if data.view_mode in ["freqcolumns", "freqgrid"] and data.freq_jumps %}
+    <div class="freq-nav-controls" id="freqNavControls">
+        <button type="button" class="freq-nav-btn" id="freqStepLeft" title="Move left by about 5 columns">&larr; 5 cols</button>
+        <button type="button" class="freq-nav-btn" id="freqStepRight" title="Move right by about 5 columns">5 cols &rarr;</button>
+        <span class="freq-nav-spacer"></span>
+        <button type="button" class="freq-nav-btn" id="freqStepLeftRight" title="Move left by about 5 columns">&larr; 5 cols</button>
+        <button type="button" class="freq-nav-btn" id="freqStepRightRight" title="Move right by about 5 columns">5 cols &rarr;</button>
+    </div>
+    <div class="freq-jump-bar" id="freqJumpBar">
+        {% for jump in data.freq_jumps %}
+            <button type="button" class="freq-jump-btn" data-ratio="{{ jump.ratio }}" title="{{ jump.label }}">{{ jump.start_label }}</button>
+        {% endfor %}
+    </div>
+    {% endif %}
 
     {% if data.view_mode == "columns" %}
     <div class="column-scroll view-pane" id="columnView">
@@ -49,6 +85,7 @@
                         class="station-card{% if entry.is_live_now %} live-now{% endif %}"
                         tabindex="0"
                         data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                        data-frequency-khz="{{ entry.frequency_khz }}"
                         data-flag="{{ entry.flag }}"
                         data-station="{{ entry.station|e }}"
                         data-time="{{ entry.time_days_display|e }}"
@@ -77,6 +114,7 @@
                         class="station-card{% if entry.is_live_now %} live-now{% endif %}"
                         tabindex="0"
                         data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                        data-frequency-khz="{{ entry.frequency_khz }}"
                         data-flag="{{ entry.flag }}"
                         data-station="{{ entry.station|e }}"
                         data-time="{{ entry.time_days_display|e }}"
@@ -112,6 +150,7 @@
                                 class="station-card{% if entry.is_live_now %} live-now{% endif %}"
                                 tabindex="0"
                                 data-frequency="{{ '%.3f'|format(entry.frequency_khz / 1000) }} MHz"
+                                data-frequency-khz="{{ entry.frequency_khz }}"
                                 data-flag="{{ entry.flag }}"
                                 data-station="{{ entry.station|e }}"
                                 data-time="{{ entry.time_days_display|e }}"
@@ -152,6 +191,7 @@
                         tabindex="0"
                         class="station-card station-point{% if point.is_live_now %} live-now{% endif %}"
                         data-frequency="{{ point.freq_display }}"
+                        data-frequency-khz="{{ point.freq_khz }}"
                         data-flag="{{ point.flag }}"
                         data-station="{{ point.station|e }}"
                         data-time="{{ point.time_display|e }}"
@@ -171,11 +211,27 @@
         const hoverDetails = document.getElementById("hoverDetails");
         const topScrollbar = document.getElementById("topScrollbar");
         const topScrollbarInner = document.getElementById("topScrollbarInner");
+        const freqStepLeft = document.getElementById("freqStepLeft");
+        const freqStepRight = document.getElementById("freqStepRight");
+        const freqStepLeftRight = document.getElementById("freqStepLeftRight");
+        const freqStepRightRight = document.getElementById("freqStepRightRight");
+        const freqJumpBar = document.getElementById("freqJumpBar");
+        const tciHost = document.getElementById("tciHost");
+        const tciPort = document.getElementById("tciPort");
+        const tciConnectBtn = document.getElementById("tciConnectBtn");
+        const tciDisconnectBtn = document.getElementById("tciDisconnectBtn");
+        const tciSendSpot = document.getElementById("tciSendSpot");
+        const tciStatus = document.getElementById("tciStatus");
+        const tciMessage = document.getElementById("tciMessage");
+        const tciRawCmd = document.getElementById("tciRawCmd");
+        const tciRawSendBtn = document.getElementById("tciRawSendBtn");
+        const selectedStation = document.getElementById("selectedStation");
         const columnView = document.getElementById("columnView");
         const freqColumnView = document.getElementById("freqColumnView");
         const gridView = document.getElementById("gridView");
         const freqGridView = document.getElementById("freqGridView");
         let syncLock = false;
+        let selectedCard = null;
 
         function activePane() {
             if (viewToggle.value === "freqgrid") {
@@ -242,6 +298,7 @@
                 <p><strong>Time:</strong> ${esc(card.dataset.time)}</p>
                 <p><strong>Language/Target:</strong> ${esc(card.dataset.langTarget)}</p>
                 <p><strong>Remarks:</strong> ${esc(card.dataset.remarks || "-")}</p>
+                <p><strong>Action:</strong> Click card to tune via TCI (AM mode)</p>
             `;
         }
 
@@ -264,6 +321,10 @@
                 if (card) setHoverDetails(card);
             });
             container.addEventListener("mouseleave", clearHoverDetails);
+            container.addEventListener("click", (event) => {
+                const card = event.target.closest(".station-card");
+                if (card) tuneFromCard(card);
+            });
         }
 
         function bindScrollSync(container) {
@@ -285,6 +346,92 @@
         bindScrollSync(gridView);
         bindScrollSync(freqGridView);
 
+        function setTciStatus(connected, message) {
+            tciStatus.textContent = connected ? "Connected" : "Disconnected";
+            tciStatus.classList.toggle("ok", connected);
+            tciStatus.classList.toggle("bad", !connected);
+            tciStatus.title = message || "";
+            tciMessage.textContent = message || "";
+        }
+
+        async function connectTci() {
+            const host = tciHost.value.trim();
+            const port = Number(tciPort.value);
+            const response = await fetch("/api/tci/connect", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({host, port, send_spot: tciSendSpot.checked}),
+            });
+            const data = await response.json();
+            setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
+        }
+
+        async function saveTciSettings() {
+            const host = tciHost.value.trim();
+            const port = Number(tciPort.value);
+            if (!host || !port) return;
+            const response = await fetch("/api/tci/settings", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({host, port, send_spot: tciSendSpot.checked}),
+            });
+            const data = await response.json();
+            setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
+        }
+
+        async function disconnectTci() {
+            const response = await fetch("/api/tci/disconnect", {method: "POST"});
+            const data = await response.json();
+            setTciStatus(Boolean(data.connected), data.message || "");
+        }
+
+        async function tuneFromCard(card) {
+            const frequencyKhz = Number(card.dataset.frequencyKhz);
+            if (!frequencyKhz) return;
+            if (selectedCard && selectedCard !== card) {
+                selectedCard.classList.remove("selected-station");
+            }
+            selectedCard = card;
+            card.classList.add("selected-station");
+            selectedStation.textContent = `Selected: ${card.dataset.frequency} ${card.dataset.flag || ""} ${card.dataset.station}`;
+
+            const response = await fetch("/api/tci/tune", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    frequency_khz: frequencyKhz,
+                    mode: "am",
+                    send_spot: tciSendSpot.checked,
+                    station: card.dataset.station || "SWL",
+                }),
+            });
+            const data = await response.json();
+            const connected = Boolean(data?.status?.connected);
+            const message = data?.spot_result || data?.result || data?.status?.last_error || data?.message || "";
+            setTciStatus(connected, message);
+        }
+
+        async function sendRawTci() {
+            const command = tciRawCmd.value.trim();
+            if (!command) return;
+            const response = await fetch("/api/tci/raw", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({command}),
+            });
+            const data = await response.json();
+            const connected = Boolean(data?.status?.connected);
+            const message = data?.result || data?.status?.last_error || data?.message || "";
+            setTciStatus(connected, message);
+        }
+
+        tciConnectBtn.addEventListener("click", connectTci);
+        tciDisconnectBtn.addEventListener("click", disconnectTci);
+        tciRawSendBtn.addEventListener("click", sendRawTci);
+        tciHost.addEventListener("change", saveTciSettings);
+        tciPort.addEventListener("change", saveTciSettings);
+        tciSendSpot.addEventListener("change", saveTciSettings);
+
         topScrollbar.addEventListener("scroll", () => {
             if (syncLock) return;
             const pane = activePane();
@@ -293,6 +440,39 @@
             pane.scrollLeft = topScrollbar.scrollLeft;
             syncLock = false;
         });
+        if (freqJumpBar) {
+            freqJumpBar.addEventListener("click", (event) => {
+                const btn = event.target.closest(".freq-jump-btn");
+                if (!btn) return;
+                const pane = activePane();
+                if (!pane) return;
+                const ratio = Number(btn.dataset.ratio || "0");
+                const target = Math.max(0, (pane.scrollWidth - pane.clientWidth) * ratio);
+                pane.scrollLeft = target;
+                topScrollbar.scrollLeft = target;
+            });
+        }
+        function scrollByColumns(direction) {
+            const pane = activePane();
+            if (!pane) return;
+            const pxPerColumn = 185; // 170 column + ~15 gap
+            const delta = direction * (5 * pxPerColumn);
+            const target = Math.max(0, Math.min(pane.scrollWidth - pane.clientWidth, pane.scrollLeft + delta));
+            pane.scrollLeft = target;
+            topScrollbar.scrollLeft = target;
+        }
+        if (freqStepLeft) {
+            freqStepLeft.addEventListener("click", () => scrollByColumns(-1));
+        }
+        if (freqStepRight) {
+            freqStepRight.addEventListener("click", () => scrollByColumns(1));
+        }
+        if (freqStepLeftRight) {
+            freqStepLeftRight.addEventListener("click", () => scrollByColumns(-1));
+        }
+        if (freqStepRightRight) {
+            freqStepRightRight.addEventListener("click", () => scrollByColumns(1));
+        }
         window.addEventListener("resize", syncTopScrollbarWidth);
 
         liveToggle.addEventListener("change", applyLiveFilter);
@@ -301,5 +481,6 @@
         applyLiveFilter();
         syncTopScrollbarWidth();
     </script>
+    <footer class="app-footer">SWL View v{{ data.app_version }} by {{ data.app_author }} {{ data.app_copyright }}</footer>
 </body>
 </html>
