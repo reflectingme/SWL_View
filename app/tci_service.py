@@ -147,9 +147,13 @@ class TCIClient:
         payload = {
             "spotter": "SWL_View",
             "comment": f"SWL schedule {mode_raw or 'am'}",
+            "heading": 0,
+            "continent": "",
+            "country": "",
             "utctime": utc_now,
-            "textcolor": "-1",
-            "ttl": ttl_value,
+            "TextColor": "#FF00FF00",
+            "IsSWL": bool(use_swl_timed_spot),
+            "SWLSecondsToLive": ttl_value if use_swl_timed_spot else 0,
         }
         payload_json = json.dumps(payload, separators=(",", ":"))
         if self.profile == "expert":
