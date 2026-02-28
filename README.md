@@ -184,6 +184,15 @@ This creates:
 
 Each package includes the full project and a platform-specific `QUICKSTART.md`.
 
+## Upgrading To A New Version
+
+- User TCI settings are stored in `app/local_config.json` (host, port, profile, send-spot).
+- To keep your settings during upgrade, preserve this file.
+- Recommended upgrade steps:
+  1. Back up `app/local_config.json`.
+  2. Replace application files with the new version.
+  3. Restore `app/local_config.json` if it was overwritten.
+
 ## Troubleshooting
 
 - UI not updating after changes:
