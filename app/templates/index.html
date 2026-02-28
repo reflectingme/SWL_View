@@ -121,11 +121,12 @@
 
     {% if data.view_mode in ["freqcolumns", "freqgrid"] and data.freq_jumps %}
     <div class="freq-nav-controls" id="freqNavControls">
-        <button type="button" class="freq-nav-btn" id="freqStepLeft" title="Move left by about 5 columns">&larr; 5 cols</button>
-        <button type="button" class="freq-nav-btn" id="freqStepRight" title="Move right by about 5 columns">5 cols &rarr;</button>
-        <span class="freq-nav-spacer"></span>
-        <button type="button" class="freq-nav-btn" id="freqStepLeftRight" title="Move left by about 5 columns">&larr; 5 cols</button>
-        <button type="button" class="freq-nav-btn" id="freqStepRightRight" title="Move right by about 5 columns">5 cols &rarr;</button>
+        <button type="button" class="freq-nav-btn" data-cols="-100" title="Move left by 100 columns">-100</button>
+        <button type="button" class="freq-nav-btn" data-cols="-25" title="Move left by 25 columns">-25</button>
+        <button type="button" class="freq-nav-btn" data-cols="-5" title="Move left by 5 columns">-5</button>
+        <button type="button" class="freq-nav-btn" data-cols="5" title="Move right by 5 columns">+5</button>
+        <button type="button" class="freq-nav-btn" data-cols="25" title="Move right by 25 columns">+25</button>
+        <button type="button" class="freq-nav-btn" data-cols="100" title="Move right by 100 columns">+100</button>
     </div>
     <div class="freq-jump-bar" id="freqJumpBar">
         {% for jump in data.freq_jumps %}
@@ -282,10 +283,7 @@
         const hoverDetails = document.getElementById("hoverDetails");
         const topScrollbar = document.getElementById("topScrollbar");
         const topScrollbarInner = document.getElementById("topScrollbarInner");
-        const freqStepLeft = document.getElementById("freqStepLeft");
-        const freqStepRight = document.getElementById("freqStepRight");
-        const freqStepLeftRight = document.getElementById("freqStepLeftRight");
-        const freqStepRightRight = document.getElementById("freqStepRightRight");
+        const freqNavControls = document.getElementById("freqNavControls");
         const freqJumpBar = document.getElementById("freqJumpBar");
         const tciHost = document.getElementById("tciHost");
         const tciPort = document.getElementById("tciPort");
@@ -583,26 +581,23 @@
                 topScrollbar.scrollLeft = target;
             });
         }
-        function scrollByColumns(direction) {
+        function scrollByColumns(columnCount) {
             const pane = activePane();
             if (!pane) return;
             const pxPerColumn = 185; // 170 column + ~15 gap
-            const delta = direction * (5 * pxPerColumn);
+            const delta = Number(columnCount) * pxPerColumn;
             const target = Math.max(0, Math.min(pane.scrollWidth - pane.clientWidth, pane.scrollLeft + delta));
             pane.scrollLeft = target;
             topScrollbar.scrollLeft = target;
         }
-        if (freqStepLeft) {
-            freqStepLeft.addEventListener("click", () => scrollByColumns(-1));
-        }
-        if (freqStepRight) {
-            freqStepRight.addEventListener("click", () => scrollByColumns(1));
-        }
-        if (freqStepLeftRight) {
-            freqStepLeftRight.addEventListener("click", () => scrollByColumns(-1));
-        }
-        if (freqStepRightRight) {
-            freqStepRightRight.addEventListener("click", () => scrollByColumns(1));
+        if (freqNavControls) {
+            freqNavControls.addEventListener("click", (event) => {
+                const btn = event.target.closest(".freq-nav-btn");
+                if (!btn) return;
+                const cols = Number(btn.dataset.cols || "0");
+                if (!Number.isFinite(cols) || cols === 0) return;
+                scrollByColumns(cols);
+            });
         }
         window.addEventListener("resize", syncTopScrollbarWidth);
 

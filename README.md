@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
 TCI support is included for Thetis and Expert Electronics SunSDR environments.
 
-- Version: 0.2.10
+- Version: 0.2.11
 - By: GW3JVB
 - Copyright: © 2026
 
