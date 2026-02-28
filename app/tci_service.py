@@ -15,6 +15,8 @@ except Exception:
 DEFAULT_TCI_MODE = "am"
 DEFAULT_SEND_SPOT = True
 DEFAULT_TCI_PROFILE = "thetis"
+DEFAULT_USE_SWL_TIMED_SPOT = True
+DEFAULT_PERSISTENT_SWL_SPOT = False
 VALID_TCI_PROFILES = {"thetis", "expert"}
 CONFIG_FILE = (Path(__file__).parent / "local_config.json").resolve()
 
@@ -117,6 +119,8 @@ class TCIClient:
         frequency_khz: float,
         mode: str = "am",
         ttl_seconds: int = 120,
+        use_swl_timed_spot: bool = True,
+        persistent_swl_spot: bool = False,
     ) -> tuple[bool, str]:
         station_tag = re.sub(r"[^A-Za-z0-9/]", "", (station or "").upper())
         station_tag = station_tag[:12]
@@ -126,30 +130,35 @@ class TCIClient:
         freq_hz = int(round(float(frequency_khz) * 1000))
         mode_raw = (mode or "").strip().lower()
         mode_map = {
-            "am": "AM",
-            "fm": "FM",
-            "lsb": "LSB",
-            "usb": "USB",
-            "ssb": "SSB",
-            "cw": "CW",
+            "am": "am",
+            "fm": "fm",
+            "lsb": "lsb",
+            "usb": "usb",
+            "ssb": "ssb",
+            "cw": "cw",
         }
-        spot_mode = mode_map.get(mode_raw, "SSB")
+        spot_mode = mode_map.get(mode_raw, "ssb")
+        ttl_value = 0 if persistent_swl_spot else max(1, int(ttl_seconds))
+        if use_swl_timed_spot:
+            spot_mode_token = f"{spot_mode}-swl[{ttl_value}]"
+        else:
+            spot_mode_token = spot_mode.upper()
         utc_now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         payload = {
             "spotter": "SWL_View",
             "comment": f"SWL schedule {mode_raw or 'am'}",
             "utctime": utc_now,
             "textcolor": "-1",
-            "ttl": int(ttl_seconds),
+            "ttl": ttl_value,
         }
         payload_json = json.dumps(payload, separators=(",", ":"))
         if self.profile == "expert":
             text_value = f"SWL schedule {mode_raw or 'am'}"
             text_value = text_value.replace(",", " ").replace(";", " ").strip() or "SWL_View"
             argb = "16711680"
-            commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},{argb},{text_value};"]
+            commands = [f"SPOT:{station_tag},{spot_mode.upper()},{freq_hz},{argb},{text_value};"]
         else:
-            commands = [f"SPOT:{station_tag},{spot_mode},{freq_hz},20381,[json]{payload_json};"]
+            commands = [f"SPOT:{station_tag},{spot_mode_token},{freq_hz},20381,[json]{payload_json};"]
 
         with self._lock:
             if self._ws is None:
@@ -249,6 +258,14 @@ def save_tci_settings(host: str, port: int, send_spot: bool, profile: str = DEFA
     save_local_config(config)
 
 
+def save_tci_spot_behavior(use_swl_timed_spot: bool, persistent_swl_spot: bool) -> None:
+    config = load_local_config()
+    config.setdefault("tci", {})
+    config["tci"]["use_swl_timed_spot"] = bool(use_swl_timed_spot)
+    config["tci"]["persistent_swl_spot"] = bool(persistent_swl_spot)
+    save_local_config(config)
+
+
 def get_send_spot() -> bool:
     return bool(load_local_config().get("tci", {}).get("send_spot", DEFAULT_SEND_SPOT))
 
@@ -256,6 +273,14 @@ def get_send_spot() -> bool:
 def get_tci_profile() -> str:
     profile_value = str(load_local_config().get("tci", {}).get("profile", DEFAULT_TCI_PROFILE)).strip().lower()
     return profile_value if profile_value in VALID_TCI_PROFILES else DEFAULT_TCI_PROFILE
+
+
+def get_use_swl_timed_spot() -> bool:
+    return bool(load_local_config().get("tci", {}).get("use_swl_timed_spot", DEFAULT_USE_SWL_TIMED_SPOT))
+
+
+def get_persistent_swl_spot() -> bool:
+    return bool(load_local_config().get("tci", {}).get("persistent_swl_spot", DEFAULT_PERSISTENT_SWL_SPOT))
 
 
 def bootstrap_tci_from_config() -> None:

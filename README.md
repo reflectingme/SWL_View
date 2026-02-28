@@ -48,6 +48,8 @@ All testing carried out using Thetis v2.10.3.13 x64
   - Tune by clicking station cards
   - Audio mute toggle (`Audio: ON` / `Audio: MUTED`)
   - Optional spot send (`Send spot`)
+  - Optional SWL timed spots (`Use SWL timed spots`) with automatic TTL from station off-time when live
+  - Optional persistent SWL spots (`Persistent spots (0s)`)
   - Raw TCI command sender (`Send Raw`)
 - Local config persistence in `app/local_config.json` (TCI host/port).
 

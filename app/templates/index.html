@@ -81,6 +81,14 @@
                         <input id="tciSendSpot" type="checkbox" {% if data.tci_send_spot %}checked{% endif %}>
                         Send spot
                     </label>
+                    <label class="toggle compact send-spot-toggle">
+                        <input id="tciUseSwlTimedSpot" type="checkbox" {% if data.tci_use_swl_timed_spot %}checked{% endif %}>
+                        Use SWL timed spots
+                    </label>
+                    <label class="toggle compact send-spot-toggle">
+                        <input id="tciPersistentSwlSpot" type="checkbox" {% if data.tci_persistent_swl_spot %}checked{% endif %}>
+                        Persistent spots (0s)
+                    </label>
                     <span id="selectedStation" class="selected-station-label">Selected: none</span>
                 </div>
                 <div class="tci-row">
@@ -158,6 +166,9 @@
                         data-flag="{{ entry.flag }}"
                         data-station="{{ entry.station|e }}"
                         data-time="{{ entry.time_days_display|e }}"
+                        data-time-on="{{ entry.time_on }}"
+                        data-time-off="{{ entry.time_off }}"
+                        data-days-raw="{{ entry.days_raw|e }}"
                         data-lang-target="{{ entry.lang_target_display|e }}"
                         data-remarks="{{ entry.remarks|e }}"
                         data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
@@ -187,6 +198,9 @@
                         data-flag="{{ entry.flag }}"
                         data-station="{{ entry.station|e }}"
                         data-time="{{ entry.time_days_display|e }}"
+                        data-time-on="{{ entry.time_on }}"
+                        data-time-off="{{ entry.time_off }}"
+                        data-days-raw="{{ entry.days_raw|e }}"
                         data-lang-target="{{ entry.lang_target_display|e }}"
                         data-remarks="{{ entry.remarks|e }}"
                         data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
@@ -226,6 +240,9 @@
                                 data-flag="{{ entry.flag }}"
                                 data-station="{{ entry.station|e }}"
                                 data-time="{{ entry.time_days_display|e }}"
+                                data-time-on="{{ entry.time_on }}"
+                                data-time-off="{{ entry.time_off }}"
+                                data-days-raw="{{ entry.days_raw|e }}"
                                 data-lang-target="{{ entry.lang_target_display|e }}"
                                 data-remarks="{{ entry.remarks|e }}"
                                 data-live="{{ 'Live now' if entry.is_live_now else 'Not live now' }}"
@@ -267,6 +284,9 @@
                         data-flag="{{ point.flag }}"
                         data-station="{{ point.station|e }}"
                         data-time="{{ point.time_display|e }}"
+                        data-time-on="{{ point.time_on }}"
+                        data-time-off="{{ point.time_off }}"
+                        data-days-raw="{{ point.days|e }}"
                         data-lang-target="{{ point.lang_target|e }}"
                         data-remarks="{{ point.remarks|e }}"
                         data-live="{{ 'Live now' if point.is_live_now else 'Not live now' }}"
@@ -292,6 +312,8 @@
         const tciDisconnectBtn = document.getElementById("tciDisconnectBtn");
         const tciMuteBtn = document.getElementById("tciMuteBtn");
         const tciSendSpot = document.getElementById("tciSendSpot");
+        const tciUseSwlTimedSpot = document.getElementById("tciUseSwlTimedSpot");
+        const tciPersistentSwlSpot = document.getElementById("tciPersistentSwlSpot");
         const tciStatus = document.getElementById("tciStatus");
         const tciMessage = document.getElementById("tciMessage");
         const tciRawCmd = document.getElementById("tciRawCmd");
@@ -456,7 +478,14 @@
             const response = await fetch("/api/tci/connect", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({host, port, profile: tciProfile.value, send_spot: tciSendSpot.checked}),
+                body: JSON.stringify({
+                    host,
+                    port,
+                    profile: tciProfile.value,
+                    send_spot: tciSendSpot.checked,
+                    use_swl_timed_spot: tciUseSwlTimedSpot.checked,
+                    persistent_swl_spot: tciPersistentSwlSpot.checked,
+                }),
             });
             const data = await response.json();
             setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
@@ -469,7 +498,14 @@
             const response = await fetch("/api/tci/settings", {
                 method: "POST",
                 headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({host, port, profile: tciProfile.value, send_spot: tciSendSpot.checked}),
+                body: JSON.stringify({
+                    host,
+                    port,
+                    profile: tciProfile.value,
+                    send_spot: tciSendSpot.checked,
+                    use_swl_timed_spot: tciUseSwlTimedSpot.checked,
+                    persistent_swl_spot: tciPersistentSwlSpot.checked,
+                }),
             });
             const data = await response.json();
             setTciStatus(Boolean(data.connected), data.message || data.last_error || "");
@@ -516,7 +552,12 @@
                     frequency_khz: frequencyKhz,
                     mode: "am",
                     send_spot: tciSendSpot.checked,
+                    use_swl_timed_spot: tciUseSwlTimedSpot.checked,
+                    persistent_swl_spot: tciPersistentSwlSpot.checked,
                     station: card.dataset.station || "SWL",
+                    time_on: card.dataset.timeOn || "",
+                    time_off: card.dataset.timeOff || "",
+                    days_raw: card.dataset.daysRaw || "",
                 }),
             });
             const data = await response.json();
@@ -547,6 +588,8 @@
         tciPort.addEventListener("change", saveTciSettings);
         tciProfile.addEventListener("change", saveTciSettings);
         tciSendSpot.addEventListener("change", saveTciSettings);
+        tciUseSwlTimedSpot.addEventListener("change", saveTciSettings);
+        tciPersistentSwlSpot.addEventListener("change", saveTciSettings);
 
         topScrollbar.addEventListener("scroll", () => {
             if (syncLock) return;

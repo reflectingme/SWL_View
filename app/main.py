@@ -9,9 +9,14 @@ try:
         DEFAULT_SEND_SPOT,
         DEFAULT_TCI_MODE,
         DEFAULT_TCI_PROFILE,
+        DEFAULT_USE_SWL_TIMED_SPOT,
+        DEFAULT_PERSISTENT_SWL_SPOT,
         bootstrap_tci_from_config,
+        get_persistent_swl_spot,
         get_send_spot,
         get_tci_profile,
+        get_use_swl_timed_spot,
+        save_tci_spot_behavior,
         save_tci_settings,
     )
 except ImportError:
@@ -20,9 +25,14 @@ except ImportError:
         DEFAULT_SEND_SPOT,
         DEFAULT_TCI_MODE,
         DEFAULT_TCI_PROFILE,
+        DEFAULT_USE_SWL_TIMED_SPOT,
+        DEFAULT_PERSISTENT_SWL_SPOT,
         bootstrap_tci_from_config,
+        get_persistent_swl_spot,
         get_send_spot,
         get_tci_profile,
+        get_use_swl_timed_spot,
+        save_tci_spot_behavior,
         save_tci_settings,
     )
 
@@ -188,6 +198,27 @@ def _is_live_now(entry: dict, now_utc: datetime) -> bool:
     if start < end:
         return start <= now_minutes < end
     return now_minutes >= start or now_minutes < end
+
+
+def _seconds_until_off(entry: dict, now_utc: datetime) -> int | None:
+    if not _is_live_now(entry, now_utc):
+        return None
+    start = _parse_hhmm(str(entry.get("time_on", "")))
+    end = _parse_hhmm(str(entry.get("time_off", "")))
+    if start is None or end is None:
+        return None
+    now_minutes = (now_utc.hour * 60) + now_utc.minute
+    now_seconds = now_utc.second
+    if start == end:
+        return 24 * 3600
+    if start < end:
+        remaining_minutes = end - now_minutes
+        return max(1, (remaining_minutes * 60) - now_seconds)
+    if now_minutes >= start:
+        remaining_minutes = (24 * 60 - now_minutes) + end
+    else:
+        remaining_minutes = end - now_minutes
+    return max(1, (remaining_minutes * 60) - now_seconds)
 
 
 def _normalize_entry(entry: dict) -> dict:
@@ -481,12 +512,17 @@ def tci_connect():
     host = str(payload.get("host", TCI.host))
     port = int(payload.get("port", TCI.port))
     send_spot = bool(payload.get("send_spot", get_send_spot()))
+    use_swl_timed_spot = bool(payload.get("use_swl_timed_spot", get_use_swl_timed_spot()))
+    persistent_swl_spot = bool(payload.get("persistent_swl_spot", get_persistent_swl_spot()))
     profile = str(payload.get("profile", get_tci_profile()))
     TCI.configure(host, port, profile=profile)
     save_tci_settings(TCI.host, TCI.port, send_spot, TCI.profile)
+    save_tci_spot_behavior(use_swl_timed_spot, persistent_swl_spot)
     ok, message = TCI.connect()
     status = TCI.status()
     status["send_spot"] = send_spot
+    status["use_swl_timed_spot"] = use_swl_timed_spot
+    status["persistent_swl_spot"] = persistent_swl_spot
     status["message"] = message
     return jsonify(status), (200 if ok else 400)
 
@@ -505,11 +541,16 @@ def tci_settings():
     host = str(payload.get("host", TCI.host))
     port = int(payload.get("port", TCI.port))
     send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
+    use_swl_timed_spot = bool(payload.get("use_swl_timed_spot", DEFAULT_USE_SWL_TIMED_SPOT))
+    persistent_swl_spot = bool(payload.get("persistent_swl_spot", DEFAULT_PERSISTENT_SWL_SPOT))
     profile = str(payload.get("profile", DEFAULT_TCI_PROFILE))
     TCI.configure(host, port, profile=profile)
     save_tci_settings(TCI.host, TCI.port, send_spot, TCI.profile)
+    save_tci_spot_behavior(use_swl_timed_spot, persistent_swl_spot)
     status = TCI.status()
     status["send_spot"] = send_spot
+    status["use_swl_timed_spot"] = use_swl_timed_spot
+    status["persistent_swl_spot"] = persistent_swl_spot
     status["message"] = "Settings saved"
     return jsonify(status)
 
@@ -527,10 +568,28 @@ def tci_tune():
     mode = str(payload.get("mode", DEFAULT_TCI_MODE)).strip().lower()
     ok, result = TCI.tune(frequency_khz, mode=mode)
     send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
+    use_swl_timed_spot = bool(payload.get("use_swl_timed_spot", get_use_swl_timed_spot()))
+    persistent_swl_spot = bool(payload.get("persistent_swl_spot", get_persistent_swl_spot()))
     spot_result = ""
     if ok and send_spot:
         station = str(payload.get("station", "SWL"))
-        spot_ok, spot_result = TCI.send_spot(station=station, frequency_khz=frequency_khz, mode=mode, ttl_seconds=120)
+        ttl_seconds = 120
+        spot_entry = {
+            "time_on": str(payload.get("time_on", "")),
+            "time_off": str(payload.get("time_off", "")),
+            "days_raw": str(payload.get("days_raw", "")),
+        }
+        derived_ttl = _seconds_until_off(spot_entry, datetime.now(timezone.utc))
+        if derived_ttl is not None:
+            ttl_seconds = derived_ttl
+        spot_ok, spot_result = TCI.send_spot(
+            station=station,
+            frequency_khz=frequency_khz,
+            mode=mode,
+            ttl_seconds=ttl_seconds,
+            use_swl_timed_spot=use_swl_timed_spot,
+            persistent_swl_spot=persistent_swl_spot,
+        )
         ok = ok and spot_ok
 
     status = TCI.status()
@@ -617,6 +676,8 @@ def index():
         "view_mode": view_mode,
         "tci": TCI.status(),
         "tci_send_spot": get_send_spot(),
+        "tci_use_swl_timed_spot": get_use_swl_timed_spot(),
+        "tci_persistent_swl_spot": get_persistent_swl_spot(),
         "tci_profile": get_tci_profile(),
     }
     return render_template("index.html", data=data)
