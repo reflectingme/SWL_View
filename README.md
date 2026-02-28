@@ -1,19 +1,25 @@
 # SWL View
 
 Local shortwave schedule viewer based on EiBi data.
- TCI functionality has been implemented so this software can be used with Apache Labs transceivers if using Thetis, and also Expert Electronics SunSDR transceivers (though this has not been tested on SunSDR transceivers)
+TCI support is included for Thetis and Expert Electronics SunSDR environments.
 
 - Version: 0.2.10
 - By: GW3JVB
 - Copyright: © 2026
 
+## Download The Correct Package
+
+From the GitHub release assets:
+- macOS users: `SWL_View-macos-vX.Y.Z.zip`
+- Windows users: `SWL_View-win11-vX.Y.Z.zip`
+
 ## Tested Platforms
 
 This software has been tested on the following platforms:
-- Mac Studio (Apple M2 Max) running macOS Tahoe 26.3 - Tested - OK, TCI Status Connection confirmed
+- Mac Studio (Apple M2 Max) running macOS Tahoe 26.3 (TCI connection confirmed)
 
-Tests todo:
-- Mac Studio (Apple M2 Max) running Win11 ARM in a Virtual Machine using Parallels for Mac Pro - not yet tested
+Planned testing:
+- Mac Studio (Apple M2 Max) running Win11 ARM in Parallels for Mac Pro
 
 All testing carried out using Thetis v2.10.3.13 x64
 
@@ -45,47 +51,128 @@ All testing carried out using Thetis v2.10.3.13 x64
   - Raw TCI command sender (`Send Raw`)
 - Local config persistence in `app/local_config.json` (TCI host/port).
 
-## Setup (macOS / Linux)
+## Quick Setup
+
+macOS / Linux:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+./run.sh
 ```
 
-## Setup (Windows PowerShell)
+Windows (PowerShell):
 
 ```powershell
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-## Run (macOS / Linux)
-
-```bash
-./run.sh
-```
-
-## Run (Windows)
-
-```powershell
 .\run.bat
 ```
 
-Single runtime entrypoint (all platforms):
-1. `python run.py` (runs scraper, then starts Flask)
-2. `python run.py --skip-scrape` (start Flask only)
-
-Wrappers:
-- `run.sh` (macOS/Linux): activates `.venv` and calls `python run.py`
-- `run.bat` (Windows): activates `.venv` and calls `python run.py`
-
 Then open `http://127.0.0.1:5000/`.
+
+## Detailed Step-By-Step Setup
+
+### macOS / Linux
+
+1. Open Terminal and go to the project folder:
+   ```bash
+   cd /path/to/SWL_View
+   ```
+2. Create a virtual environment:
+   ```bash
+   python3 -m venv .venv
+   ```
+3. Activate the virtual environment:
+   ```bash
+   source .venv/bin/activate
+   ```
+4. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+5. Start the app (scrape + web app):
+   ```bash
+   ./run.sh
+   ```
+6. Open browser:
+   - `http://127.0.0.1:5000/`
+
+### Windows (PowerShell)
+
+1. Open PowerShell and go to the project folder:
+   ```powershell
+   cd C:\path\to\SWL_View
+   ```
+2. Create a virtual environment:
+   ```powershell
+   py -m venv .venv
+   ```
+3. Activate the virtual environment:
+   ```powershell
+   .\.venv\Scripts\Activate.ps1
+   ```
+4. If activation is blocked, run:
+   ```powershell
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   .\.venv\Scripts\Activate.ps1
+   ```
+5. Install dependencies:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+6. Start the app (scrape + web app):
+   ```powershell
+   .\run.bat
+   ```
+7. Open browser:
+   - `http://127.0.0.1:5000/`
+
+### Runtime Options
+
+Single runtime entrypoint (all platforms):
+- `python run.py` (runs scraper, then starts Flask)
+- `python run.py --skip-scrape` (start Flask only)
+
+Wrapper behavior:
+- `run.sh` activates `.venv` then runs `python run.py`
+- `run.bat` activates `.venv` then runs `python run.py`
+
+## TCI Profile Selection (Important)
+
+- For Thetis users: select `TCI Profile = Thetis`.
+- For SunSDR users: select `TCI Profile = Expert (SunSDR)`.
+- SunSDR users must select `Expert (SunSDR)` for spot command compatibility.
+- This setting is saved in `app/local_config.json` with TCI host/port.
+
+## TCI Quick Test (Thetis)
+
+1. Start Thetis and enable its TCI server.
+2. In SWL View TCI panel, set:
+   - `Host` and `Port`
+   - `TCI Profile = Thetis`
+3. Click `Connect` and confirm status is `Connected`.
+4. Click a station card to tune.
+5. Optional: enable `Send spot` and click again.
+6. Confirm results in Thetis and in SWL View status text.
+
+## Data Refresh Guidance
+
+- EiBi schedules update by season (`Axx` / `Bxx`).
+- Refresh at least monthly.
+- Refresh immediately before operating sessions if you want latest data.
+- If not using `run.py`/wrappers, run manually:
+
+```bash
+python scraper/scrape_eibi.py
+python app/main.py
+```
 
 ## Build Release Packages
 
-Create platform zip packages from one command:
+Create both platform zip packages:
 
 ```bash
 python release/make_release_packages.py
@@ -97,46 +184,26 @@ This creates:
 
 Each package includes the full project and a platform-specific `QUICKSTART.md`.
 
-## Data Refresh Guidance
-
-- EiBi schedules update by season (`Axx` / `Bxx`), so refresh your local data at least monthly.
-- Also refresh immediately before use if you want the latest schedule data.
-- If you are not using `run.py`/`run.sh`, run manually:
-  ```bash
-  python scraper/scrape_eibi.py
-  python app/main.py
-  ```
-
-## TCI Profile Selection
-
-- Use `Thetis` profile for Thetis TCI servers.
-- Use `Expert (SunSDR)` profile for Expert Electronics SunSDR TCI servers.
-- SunSDR users: this selection is required for correct spot command format.
-
-## TCI Quick Test (Thetis)
-
-1. Start Thetis and enable its TCI server.
-2. In SWL View, enter Thetis TCI `IP` and `Port` in the top `TCI` panel.
-3. Click `Connect`.
-4. Click any station card to send a tune command to TCI (`vfo:0,0,<freq_hz>;`).
-5. Optionally toggle `Send spot` and/or `Audio`.
-6. Check the TCI status badge/message for success or error text.
-
 ## Troubleshooting
 
-- If UI changes are not visible after an update: hard refresh browser (`Cmd+Shift+R` on macOS).
-- If TCI shows disconnected:
-  - Confirm Thetis TCI server is enabled.
+- UI not updating after changes:
+  - Hard refresh browser (`Cmd+Shift+R` on macOS).
+- TCI disconnected:
+  - Confirm radio software TCI server is enabled.
+  - Confirm IP/port are correct.
   - Test TCP reachability:
-    ```bash
-    nc -vz <TCI_IP> <TCI_PORT>
-    ```
+
+```bash
+nc -vz <TCI_IP> <TCI_PORT>
+```
+
   - Test WebSocket handshake:
-    ```bash
-    python - <<'PY'
-    import websocket
-    ws = websocket.create_connection("ws://<TCI_IP>:<TCI_PORT>", timeout=3)
-    print("connected")
-    ws.close()
-    PY
-    ```
+
+```bash
+python - <<'PY'
+import websocket
+ws = websocket.create_connection("ws://<TCI_IP>:<TCI_PORT>", timeout=3)
+print("connected")
+ws.close()
+PY
+```
