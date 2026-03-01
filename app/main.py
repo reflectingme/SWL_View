@@ -41,7 +41,7 @@ except ImportError:
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.11"
+APP_VERSION = "0.2.12"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 REPO_RELEASES_URL = "https://github.com/reflectingme/SWL_View/releases/latest"
@@ -612,6 +612,23 @@ def _build_freq_jumps(entries: list[dict], segments: int = 10) -> list[dict]:
     return jumps
 
 
+def _build_freq_scale(min_khz: int, max_khz: int, ticks: int = 10) -> dict:
+    if min_khz <= 0 or max_khz <= 0 or max_khz <= min_khz:
+        return {"min_khz": min_khz, "max_khz": max_khz, "ticks": []}
+    points: list[dict] = []
+    for i in range(ticks + 1):
+        ratio = i / ticks
+        khz = int(round(min_khz + ((max_khz - min_khz) * ratio)))
+        points.append(
+            {
+                "ratio": ratio,
+                "khz": khz,
+                "label": f"{khz / 1000:.3f} MHz",
+            }
+        )
+    return {"min_khz": min_khz, "max_khz": max_khz, "ticks": points}
+
+
 @app.get("/api/tci/status")
 def tci_status():
     return jsonify(TCI.status())
@@ -752,6 +769,8 @@ def index():
 
     time_slot_keys = {(e["time_on"], e["time_off"]) for e in merged_entries}
     freq_slot_keys = {int(e["frequency_khz"]) for e in merged_entries}
+    freq_min_khz = min(freq_slot_keys) if freq_slot_keys else 0
+    freq_max_khz = max(freq_slot_keys) if freq_slot_keys else 0
 
     columns: list[dict] = []
     freq_columns: list[dict] = []
@@ -790,6 +809,7 @@ def index():
         "freq_slot_count": len(freq_slot_keys),
         "freq_plot": freq_plot,
         "freq_jumps": _build_freq_jumps(merged_entries, segments=10),
+        "freq_scale": _build_freq_scale(freq_min_khz, freq_max_khz, ticks=10),
         "view_mode": view_mode,
         "tci": TCI.status(),
         "tci_send_spot": get_send_spot(),

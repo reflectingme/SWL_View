@@ -129,6 +129,26 @@
     </div>
 
     {% if data.view_mode in ["freqcolumns", "freqgrid"] and data.freq_jumps %}
+    {% if data.freq_scale.max_khz > data.freq_scale.min_khz %}
+    <div
+        class="freq-scale-wrap"
+        id="freqScaleWrap"
+        data-min-khz="{{ data.freq_scale.min_khz }}"
+        data-max-khz="{{ data.freq_scale.max_khz }}"
+    >
+        <div class="freq-scale-viewport" id="freqScaleViewport" aria-label="Drag frequency scale">
+            <div class="freq-scale-ruler" id="freqScaleRuler" aria-hidden="true">
+                {% for tick in data.freq_scale.ticks %}
+                <span class="freq-scale-tick" data-ratio="{{ tick.ratio }}" style="left: {{ (tick.ratio * 100)|round(3) }}%;">
+                    <span class="freq-scale-label">{{ tick.label }}</span>
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="freq-scale-center-marker" aria-hidden="true"></div>
+        <div class="freq-scale-current" id="freqScaleCurrent">{{ "%.3f"|format(data.freq_scale.min_khz / 1000) }} MHz</div>
+    </div>
+    {% endif %}
     <div class="freq-nav-controls" id="freqNavControls">
         <button type="button" class="freq-nav-btn" data-cols="-100" title="Move left by 100 columns">-100</button>
         <button type="button" class="freq-nav-btn" data-cols="-25" title="Move left by 25 columns">-25</button>
@@ -306,6 +326,10 @@
         const topScrollbarInner = document.getElementById("topScrollbarInner");
         const freqNavControls = document.getElementById("freqNavControls");
         const freqJumpBar = document.getElementById("freqJumpBar");
+        const freqScaleWrap = document.getElementById("freqScaleWrap");
+        const freqScaleViewport = document.getElementById("freqScaleViewport");
+        const freqScaleRuler = document.getElementById("freqScaleRuler");
+        const freqScaleCurrent = document.getElementById("freqScaleCurrent");
         const tciHost = document.getElementById("tciHost");
         const tciPort = document.getElementById("tciPort");
         const tciProfile = document.getElementById("tciProfile");
@@ -327,6 +351,10 @@
         const gridView = document.getElementById("gridView");
         const freqGridView = document.getElementById("freqGridView");
         let syncLock = false;
+        let freqScaleSyncLock = false;
+        let freqScaleDragging = false;
+        let freqScaleDragStartX = 0;
+        let freqScaleDragStartScroll = 0;
         let selectedCard = null;
         let isMuted = {{ "true" if data.tci.muted else "false" }};
 
@@ -416,6 +444,7 @@
                 .replaceAll('"', "&quot;")
                 .replaceAll("'", "&#39;");
             selectedDetails.classList.remove("empty");
+            selectedDetails.classList.add("active");
             selectedDetails.innerHTML = `
                 <h3>${esc(card.dataset.flag || "🌐")} ${esc(card.dataset.station)}</h3>
                 <p><strong>Frequency:</strong> ${esc(card.dataset.frequency)}</p>
@@ -450,7 +479,150 @@
                 syncLock = true;
                 topScrollbar.scrollLeft = container.scrollLeft;
                 syncLock = false;
+                updateFreqScaleFromPane();
             });
+        }
+
+        function scrollToFrequencyKHz(frequencyKHz) {
+            const pane = activePane();
+            if (!pane) return;
+            const target = scrollTargetForFrequencyKHz(pane, frequencyKHz);
+            pane.scrollLeft = target;
+            topScrollbar.scrollLeft = target;
+        }
+
+        function visibleFreqColumns() {
+            if (!freqColumnView) return [];
+            return Array.from(freqColumnView.querySelectorAll(".schedule-column"))
+                .filter((col) => col.style.display !== "none");
+        }
+
+        function centerFrequencyKHzForPane(pane, minKHz, maxKHz) {
+            if (pane === freqColumnView) {
+                const cols = visibleFreqColumns();
+                if (!cols.length) return minKHz;
+                const paneCenterX = pane.scrollLeft + (pane.clientWidth / 2);
+                let bestCol = cols[0];
+                let bestDist = Math.abs((bestCol.offsetLeft + (bestCol.offsetWidth / 2)) - paneCenterX);
+                for (const col of cols) {
+                    const colCenterX = col.offsetLeft + (col.offsetWidth / 2);
+                    const dist = Math.abs(colCenterX - paneCenterX);
+                    if (dist < bestDist) {
+                        bestCol = col;
+                        bestDist = dist;
+                    }
+                }
+                const colKHz = Number(bestCol.dataset.frequencyKhz || "0");
+                if (Number.isFinite(colKHz) && colKHz > 0) return colKHz;
+            }
+            const maxPaneScroll = Math.max(1, pane.scrollWidth - pane.clientWidth);
+            const paneRatio = Math.max(0, Math.min(1, pane.scrollLeft / maxPaneScroll));
+            return Math.round(minKHz + ((maxKHz - minKHz) * paneRatio));
+        }
+
+        function scrollTargetForFrequencyKHz(pane, frequencyKHz) {
+            if (!pane) return 0;
+            const maxPaneScroll = Math.max(0, pane.scrollWidth - pane.clientWidth);
+            if (pane === freqColumnView) {
+                const cols = visibleFreqColumns();
+                if (!cols.length) return 0;
+                let bestCol = cols[0];
+                let bestDelta = Math.abs(Number(bestCol.dataset.frequencyKhz || "0") - frequencyKHz);
+                for (const col of cols) {
+                    const khz = Number(col.dataset.frequencyKhz || "0");
+                    if (!Number.isFinite(khz) || khz <= 0) continue;
+                    const delta = Math.abs(khz - frequencyKHz);
+                    if (delta < bestDelta) {
+                        bestCol = col;
+                        bestDelta = delta;
+                    }
+                }
+                const centered = bestCol.offsetLeft - ((pane.clientWidth - bestCol.offsetWidth) / 2);
+                return Math.max(0, Math.min(maxPaneScroll, centered));
+            }
+            if (freqScaleWrap) {
+                const minKHz = Number(freqScaleWrap.dataset.minKhz || "0");
+                const maxKHz = Number(freqScaleWrap.dataset.maxKhz || "0");
+                if (maxKHz > minKHz) {
+                    const ratio = Math.max(0, Math.min(1, (frequencyKHz - minKHz) / (maxKHz - minKHz)));
+                    return Math.max(0, Math.min(maxPaneScroll, ratio * maxPaneScroll));
+                }
+            }
+            return 0;
+        }
+
+        function updateFreqScaleFromPane() {
+            if (!freqScaleWrap || !freqScaleViewport || !freqScaleRuler || freqScaleSyncLock) return;
+            const pane = activePane();
+            if (!pane) return;
+            const minKHz = Number(freqScaleWrap.dataset.minKhz || "0");
+            const maxKHz = Number(freqScaleWrap.dataset.maxKhz || "0");
+            if (maxKHz <= minKHz) return;
+
+            const centerKHz = centerFrequencyKHzForPane(pane, minKHz, maxKHz);
+            const khzRatio = Math.max(0, Math.min(1, (centerKHz - minKHz) / (maxKHz - minKHz)));
+            const rulerWidth = freqScaleRuler.scrollWidth;
+            const viewportWidth = freqScaleViewport.clientWidth;
+            if (rulerWidth <= 0 || viewportWidth <= 0) return;
+            const maxRulerScroll = Math.max(1, rulerWidth - viewportWidth);
+            freqScaleViewport.scrollLeft = Math.max(0, Math.min(maxRulerScroll, khzRatio * maxRulerScroll));
+
+            if (freqScaleCurrent) {
+                freqScaleCurrent.textContent = `${(centerKHz / 1000).toFixed(3)} MHz`;
+            }
+        }
+
+        function updatePaneFromFreqScale() {
+            if (!freqScaleWrap || !freqScaleViewport || !freqScaleRuler) return;
+            const pane = activePane();
+            if (!pane) return;
+            const minKHz = Number(freqScaleWrap.dataset.minKhz || "0");
+            const maxKHz = Number(freqScaleWrap.dataset.maxKhz || "0");
+            if (maxKHz <= minKHz) return;
+            const rulerWidth = freqScaleRuler.scrollWidth;
+            const viewportWidth = freqScaleViewport.clientWidth;
+            if (rulerWidth <= 0 || viewportWidth <= 0) return;
+
+            const maxRulerScroll = Math.max(1, rulerWidth - viewportWidth);
+            const khzRatio = Math.max(0, Math.min(1, freqScaleViewport.scrollLeft / maxRulerScroll));
+            const targetKHz = Math.round(minKHz + ((maxKHz - minKHz) * khzRatio));
+            const target = scrollTargetForFrequencyKHz(pane, targetKHz);
+            pane.scrollLeft = target;
+            topScrollbar.scrollLeft = target;
+
+            if (freqScaleCurrent) {
+                const centeredKHz = centerFrequencyKHzForPane(pane, minKHz, maxKHz);
+                freqScaleCurrent.textContent = `${(centeredKHz / 1000).toFixed(3)} MHz`;
+            }
+        }
+
+        function layoutFreqScale() {
+            if (!freqScaleViewport || !freqScaleRuler) return;
+            const viewportWidth = freqScaleViewport.clientWidth;
+            if (viewportWidth <= 0) return;
+            const pad = viewportWidth / 2;
+            freqScaleRuler.style.paddingLeft = `${pad}px`;
+            freqScaleRuler.style.paddingRight = `${pad}px`;
+
+            const span = Math.max(1, freqScaleRuler.scrollWidth - viewportWidth);
+            const ticks = Array.from(freqScaleRuler.querySelectorAll(".freq-scale-tick"));
+            for (const tick of ticks) {
+                const ratio = Number(tick.dataset.ratio || "0");
+                const x = pad + (Math.max(0, Math.min(1, ratio)) * span);
+                tick.style.left = `${x}px`;
+            }
+        }
+
+        function centerCardInView(card) {
+            const pane = activePane();
+            if (!pane || !card) return;
+            const paneRect = pane.getBoundingClientRect();
+            const cardRect = card.getBoundingClientRect();
+            const cardCenterInPaneSpace = (cardRect.left - paneRect.left) + pane.scrollLeft + (cardRect.width / 2);
+            const target = Math.max(0, Math.min(pane.scrollWidth - pane.clientWidth, cardCenterInPaneSpace - (pane.clientWidth / 2)));
+            pane.scrollLeft = target;
+            topScrollbar.scrollLeft = target;
+            updateFreqScaleFromPane();
         }
 
         bindHoverEvents(columnView);
@@ -461,6 +633,39 @@
         bindScrollSync(freqColumnView);
         bindScrollSync(gridView);
         bindScrollSync(freqGridView);
+        if (freqScaleViewport && freqScaleRuler) {
+            freqScaleViewport.addEventListener("pointerdown", (event) => {
+                freqScaleDragging = true;
+                freqScaleDragStartX = event.clientX;
+                freqScaleDragStartScroll = freqScaleViewport.scrollLeft;
+                freqScaleViewport.setPointerCapture(event.pointerId);
+            });
+            freqScaleViewport.addEventListener("pointermove", (event) => {
+                if (!freqScaleDragging) return;
+                freqScaleSyncLock = true;
+                const dx = event.clientX - freqScaleDragStartX;
+                freqScaleViewport.scrollLeft = freqScaleDragStartScroll - dx;
+                updatePaneFromFreqScale();
+                freqScaleSyncLock = false;
+            });
+            const endDrag = (event) => {
+                if (!freqScaleDragging) return;
+                freqScaleDragging = false;
+                try {
+                    freqScaleViewport.releasePointerCapture(event.pointerId);
+                } catch (_) {}
+            };
+            freqScaleViewport.addEventListener("pointerup", endDrag);
+            freqScaleViewport.addEventListener("pointercancel", endDrag);
+            freqScaleViewport.addEventListener("wheel", (event) => {
+                if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+                event.preventDefault();
+                freqScaleSyncLock = true;
+                freqScaleViewport.scrollLeft += event.deltaX;
+                updatePaneFromFreqScale();
+                freqScaleSyncLock = false;
+            }, { passive: false });
+        }
 
         function setTciStatus(connected, message) {
             tciStatus.textContent = connected ? "Connected" : "Disconnected";
@@ -546,6 +751,7 @@
             card.classList.add("selected-station");
             selectedStation.textContent = `Selected: ${card.dataset.frequency} ${card.dataset.flag || ""} ${card.dataset.station}`;
             setSelectedDetails(card);
+            centerCardInView(card);
 
             const response = await fetch("/api/tci/tune", {
                 method: "POST",
@@ -649,6 +855,7 @@
             syncLock = true;
             pane.scrollLeft = topScrollbar.scrollLeft;
             syncLock = false;
+            updateFreqScaleFromPane();
         });
         if (freqJumpBar) {
             freqJumpBar.addEventListener("click", (event) => {
@@ -693,13 +900,19 @@
                 scrollByColumns(cols);
             });
         }
-        window.addEventListener("resize", syncTopScrollbarWidth);
+        window.addEventListener("resize", () => {
+            syncTopScrollbarWidth();
+            layoutFreqScale();
+            updateFreqScaleFromPane();
+        });
 
         liveToggle.addEventListener("change", applyLiveFilter);
         viewToggle.addEventListener("change", setView);
 
         applyLiveFilter();
         syncTopScrollbarWidth();
+        layoutFreqScale();
+        updateFreqScaleFromPane();
         setTciStatus({{ "true" if data.tci.connected else "false" }}, tciMessage.textContent);
         checkForUpdates();
     </script>
