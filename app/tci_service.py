@@ -87,13 +87,23 @@ class TCIClient:
 
         mode_value = (mode or "").strip().lower()
         if mode_value:
-            commands.extend(
-                [
-                    f"modulation:0,0,{mode_value};",
-                    f"modulation:0,{mode_value};",
-                    f"mode:0,0,{mode_value};",
-                ]
-            )
+            if self.profile == "thetis":
+                # Keep Thetis mode set minimal but send both common variants.
+                # Some builds accept one form and ignore the other.
+                commands.extend(
+                    [
+                        f"modulation:0,0,{mode_value};",
+                        f"modulation:0,{mode_value};",
+                    ]
+                )
+            else:
+                commands.extend(
+                    [
+                        f"modulation:0,0,{mode_value};",
+                        f"modulation:0,{mode_value};",
+                        f"mode:0,0,{mode_value};",
+                    ]
+                )
 
         with self._lock:
             if self._ws is None:

@@ -199,6 +199,14 @@ Each package includes the full project and a platform-specific `QUICKSTART.md`.
 
 - UI not updating after changes:
   - Hard refresh browser (`Cmd+Shift+R` on macOS).
+- GitHub update check shows SSL certificate errors on macOS:
+  - Run:
+
+```bash
+open /Applications/Python\ 3.*/Install\ Certificates.command
+```
+
+  - Restart SWL View after it completes.
 - TCI disconnected:
   - Confirm radio software TCI server is enabled.
   - Confirm IP/port are correct.

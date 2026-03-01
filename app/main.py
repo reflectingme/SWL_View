@@ -101,7 +101,7 @@ def _fetch_latest_release_payload() -> dict:
             "User-Agent": "SWL-View/1.0",
         },
     )
-    with urlopen(request_obj, timeout=3.0) as response:
+    with urlopen(request_obj, timeout=6.0) as response:
         raw = response.read().decode("utf-8", errors="replace")
     data = json.loads(raw)
     latest_tag = str(data.get("tag_name", "")).strip()
@@ -124,6 +124,30 @@ def _fetch_latest_release_payload() -> dict:
         "macos_url": mac_url,
         "windows_url": win_url,
         "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source": "github_api",
+        "check_error": "",
+    }
+
+
+def _fetch_latest_release_payload_via_redirect() -> dict:
+    request_obj = Request(
+        REPO_RELEASES_URL,
+        headers={"User-Agent": "SWL-View/1.0"},
+    )
+    with urlopen(request_obj, timeout=6.0) as response:
+        final_url = str(response.geturl() or REPO_RELEASES_URL)
+    tag = final_url.rstrip("/").split("/")[-1]
+    latest_version = tag[1:] if tag.lower().startswith("v") else tag
+    return {
+        "current_version": APP_VERSION,
+        "latest_version": latest_version,
+        "update_available": _version_is_newer(latest_version, APP_VERSION),
+        "release_url": final_url,
+        "macos_url": "",
+        "windows_url": "",
+        "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+        "source": "github_redirect",
+        "check_error": "",
     }
 
 
@@ -135,16 +159,23 @@ def _get_update_payload() -> dict:
         return dict(cached)
     try:
         payload = _fetch_latest_release_payload()
-    except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
-        payload = {
-            "current_version": APP_VERSION,
-            "latest_version": APP_VERSION,
-            "update_available": False,
-            "release_url": REPO_RELEASES_URL,
-            "macos_url": "",
-            "windows_url": "",
-            "checked_at_utc": datetime.now(timezone.utc).isoformat(),
-        }
+    except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc:
+        first_error = str(exc)
+        try:
+            payload = _fetch_latest_release_payload_via_redirect()
+            payload["check_error"] = first_error
+        except (URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError) as exc2:
+            payload = {
+                "current_version": APP_VERSION,
+                "latest_version": APP_VERSION,
+                "update_available": False,
+                "release_url": REPO_RELEASES_URL,
+                "macos_url": "",
+                "windows_url": "",
+                "checked_at_utc": datetime.now(timezone.utc).isoformat(),
+                "source": "fallback",
+                "check_error": f"api={first_error}; redirect={exc2}",
+            }
     _UPDATE_CACHE["checked_at"] = now
     _UPDATE_CACHE["payload"] = dict(payload)
     return payload
@@ -650,7 +681,8 @@ def tci_tune():
     except Exception:
         return jsonify({"ok": False, "message": "Invalid frequency_khz"}), 400
 
-    mode = str(payload.get("mode", DEFAULT_TCI_MODE)).strip().lower()
+    mode_raw = str(payload.get("mode", "")).strip().lower()
+    mode = mode_raw or None
     ok, result = TCI.tune(frequency_khz, mode=mode)
     send_spot = bool(payload.get("send_spot", DEFAULT_SEND_SPOT))
     use_swl_timed_spot = bool(payload.get("use_swl_timed_spot", get_use_swl_timed_spot()))
@@ -670,7 +702,7 @@ def tci_tune():
         spot_ok, spot_result = TCI.send_spot(
             station=station,
             frequency_khz=frequency_khz,
-            mode=mode,
+            mode=mode_raw or DEFAULT_TCI_MODE,
             ttl_seconds=ttl_seconds,
             use_swl_timed_spot=use_swl_timed_spot,
             persistent_swl_spot=persistent_swl_spot,
