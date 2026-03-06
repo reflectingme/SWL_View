@@ -3,7 +3,7 @@
 Local shortwave schedule viewer based on EiBi data.
 TCI support is included for Thetis and Expert Electronics SunSDR environments.
 
-- Version: 0.2.11
+- Version: 0.2.13
 - By: GW3JVB
 - Copyright: © 2026
 
@@ -67,7 +67,8 @@ pip install -r requirements.txt
 Windows (PowerShell):
 
 ```powershell
-py -m venv .venv
+python --version
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 .\run.bat
@@ -104,32 +105,43 @@ Then open `http://127.0.0.1:5000/`.
 
 ### Windows (PowerShell)
 
-1. Open PowerShell and go to the project folder:
+1. Install Python 3 if not already installed:
+   - Recommended:
+     ```powershell
+     winget install Python.Python.3.12
+     ```
+   - Or install from [python.org](https://www.python.org/downloads/windows/) and enable `Add python.exe to PATH`.
+2. Open a new PowerShell window and verify Python:
+   ```powershell
+   python --version
+   ```
+3. Go to the project folder:
    ```powershell
    cd C:\path\to\SWL_View
    ```
-2. Create a virtual environment:
+4. Create a virtual environment:
    ```powershell
-   py -m venv .venv
+   python -m venv .venv
    ```
-3. Activate the virtual environment:
+5. Activate the virtual environment:
    ```powershell
    .\.venv\Scripts\Activate.ps1
    ```
-4. If activation is blocked, run:
+6. If activation is blocked, run:
    ```powershell
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    .\.venv\Scripts\Activate.ps1
    ```
-5. Install dependencies:
+7. Install dependencies:
    ```powershell
-   pip install -r requirements.txt
+   python -m pip install --upgrade pip
+   python -m pip install -r requirements.txt
    ```
-6. Start the app (scrape + web app):
+8. Start the app (scrape + web app):
    ```powershell
    .\run.bat
    ```
-7. Open browser:
+9. Open browser:
    - `http://127.0.0.1:5000/`
 
 ### Runtime Options

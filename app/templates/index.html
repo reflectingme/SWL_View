@@ -7,6 +7,27 @@
     <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
+    <div id="preReleaseModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="preReleaseTitle">
+        <div class="modal-card">
+            <h2 id="preReleaseTitle">Pre-release Notice</h2>
+            <p>
+                This is a pre-release build. If no significant issues are reported, I’m hoping to publish
+                a stable release in the next 1–2 weeks. Thanks for using and trying SWL View.
+            </p>
+            <p>
+                SWL View is a free hobby project. Updates and fixes are made as time allows, with no guaranteed
+                response or delivery timelines.
+            </p>
+            <label class="modal-checkbox">
+                <input id="preReleaseDontShow" type="checkbox">
+                Don’t show this again for this version
+            </label>
+            <div class="modal-actions">
+                <button id="preReleaseContinue" type="button">Continue</button>
+            </div>
+        </div>
+    </div>
+
     <div class="app-header-card">
         <div class="app-title-row">
             <img class="app-logo" src="/static/icons/icon-512.png" alt="SWL View logo">
@@ -346,6 +367,9 @@
         const updateBanner = document.getElementById("updateBanner");
         const selectedStation = document.getElementById("selectedStation");
         const selectedDetails = document.getElementById("selectedDetails");
+        const preReleaseModal = document.getElementById("preReleaseModal");
+        const preReleaseDontShow = document.getElementById("preReleaseDontShow");
+        const preReleaseContinue = document.getElementById("preReleaseContinue");
         const columnView = document.getElementById("columnView");
         const freqColumnView = document.getElementById("freqColumnView");
         const gridView = document.getElementById("gridView");
@@ -357,6 +381,32 @@
         let freqScaleDragStartScroll = 0;
         let selectedCard = null;
         let isMuted = {{ "true" if data.tci.muted else "false" }};
+        const appVersion = "{{ data.app_version }}";
+
+        function isPreReleaseVersion(version) {
+            const major = Number(String(version || "").split(".")[0]);
+            return Number.isFinite(major) && major < 1;
+        }
+
+        function showPreReleaseModalIfNeeded() {
+            if (!preReleaseModal || !preReleaseContinue || !isPreReleaseVersion(appVersion)) return;
+            const key = `swl_view_pre_release_seen_${appVersion}`;
+            let seen = "false";
+            try {
+                seen = localStorage.getItem(key) || "false";
+            } catch (_) {}
+            if (seen === "true") return;
+            preReleaseModal.classList.remove("hidden");
+            preReleaseContinue.focus();
+            preReleaseContinue.addEventListener("click", () => {
+                if (preReleaseDontShow && preReleaseDontShow.checked) {
+                    try {
+                        localStorage.setItem(key, "true");
+                    } catch (_) {}
+                }
+                preReleaseModal.classList.add("hidden");
+            });
+        }
 
         function activePane() {
             if (viewToggle.value === "freqgrid") {
@@ -915,6 +965,7 @@
         updateFreqScaleFromPane();
         setTciStatus({{ "true" if data.tci.connected else "false" }}, tciMessage.textContent);
         checkForUpdates();
+        showPreReleaseModalIfNeeded();
     </script>
     <footer class="app-footer">SWL View v{{ data.app_version }} by {{ data.app_author }} {{ data.app_copyright }}</footer>
 </body>

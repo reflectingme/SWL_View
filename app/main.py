@@ -41,7 +41,7 @@ except ImportError:
 
 app = Flask(__name__)
 
-APP_VERSION = "0.2.12"
+APP_VERSION = "0.2.13"
 APP_AUTHOR = "GW3JVB"
 APP_COPYRIGHT = "© 2026"
 REPO_RELEASES_URL = "https://github.com/reflectingme/SWL_View/releases/latest"
